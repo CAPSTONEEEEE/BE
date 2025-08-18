@@ -1,21 +1,46 @@
-# backend/app/router/recommend_router.py
+# app/router/recommend_router.py
+from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Depends
 
-# APIRouter 객체를 생성합니다.
-# tags를 '추천'으로 설정하여 API 문서에서 그룹화되도록 합니다.
-router = APIRouter(tags=["추천"])
+# 절대경로로 통일
+from app.models.recommend_models import (
+    RandomRecommendRequest,
+    RandomRecommendResponse,
+    ChatRecommendRequest,
+    ChatRecommendResponse,
+)
+from app.services.recommend_service import RecommendationService
+# 필요 시 DB 의존성 주입 가능 (서비스가 DB를 사용한다면 주석 해제)
+# from app.services.common_service import get_db
+# from sqlalchemy.orm import Session
 
-@router.get("/recommend")
-def get_recommendations_mock():
+router = APIRouter(prefix="/recommend", tags=["recommend"])
+
+# 서비스 인스턴스는 라우터 모듈 레벨에서 1회 생성
+recommender = RecommendationService()
+
+@router.post("/random", response_model=RandomRecommendResponse, summary="랜덤 여행지 추천")
+async def recommend_random(request: RandomRecommendRequest):
     """
-    사용자 맞춤형 여행지 추천 리스트를 반환하는 Mock API입니다.
+    사용자가 선택한 테마를 기반으로 지역 무관 랜덤 추천을 제공합니다.
     """
-    # 실제 데이터베이스나 로직 없이 가상의 JSON 데이터를 반환합니다.
-    return [
-        {"id": 1, "title": "보령 머드 축제", "location": "충남 보령", "rating": 4.8},
-        {"id": 2, "title": "전주 한옥마을 투어", "location": "전북 전주", "rating": 4.5},
-        {"id": 3, "title": "담양 죽녹원 산책", "location": "전남 담양", "rating": 4.9},
-        {"id": 4, "title": "거제도 외도 보타니아", "location": "경남 거제", "rating": 4.7},
-    ]
+    try:
+        # db: Session = Depends(get_db) 가 필요하다면 시그니처에 추가
+        return await recommender.get_random_recommendations(request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"recommend_random failed: {e}")
 
+@router.post("/chat", response_model=ChatRecommendResponse, summary="대화 기반 맞춤 추천")
+async def recommend_chat(request: ChatRecommendRequest):
+    """
+    대화에서 수집한 선호도를 기반으로 OpenAI를 이용해 맞춤 여행지를 추천합니다.
+    """
+    try:
+        return await recommender.get_chat_recommendations(request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"recommend_chat failed: {e}")
