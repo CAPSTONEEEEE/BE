@@ -1,5 +1,29 @@
+<<<<<<< HEAD
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+=======
+app/__pycache__/main.cpython-313.pyc
+app/__pycache__/models.cpython-313.pyc
+app/router/__pycache__/content_router.cpython-313.pyc
+app/router/__pycache__/festival_router.cpython-313.pyc
+app/router/__pycache__/market_router.cpython-313.pyc
+app/router/__pycache__/recommend_router.cpython-313.pyc
+app/router/__pycache__/users_router.cpython-313.pyc
+app/__pycache__/main.cpython-313.pyc
+app/__pycache__/models.cpython-313.pyc
+app/router/__pycache__/content_router.cpython-313.pyc
+app/router/__pycache__/festival_router.cpython-313.pyc
+app/router/__pycache__/market_router.cpython-313.pyc
+app/router/__pycache__/recommend_router.cpython-313.pyc
+app/router/__pycache__/users_router.cpython-313.pyc
+app/__pycache__/main.cpython-313.pyc
+app/__pycache__/models.cpython-313.pyc
+app/router/__pycache__/content_router.cpython-313.pyc
+app/router/__pycache__/festival_router.cpython-313.pyc
+app/router/__pycache__/market_router.cpython-313.pyc
+app/router/__pycache__/recommend_router.cpython-313.pyc
+app/router/__pycache__/users_router.cpython-313.pyc
+>>>>>>> 07c34cd9d7c86b7058c37d5dea0d23f9616361b9
