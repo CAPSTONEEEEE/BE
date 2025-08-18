@@ -1,150 +1,43 @@
 # app/router/market_router.py
-from __future__ import annotations
-from typing import Optional
-from math import ceil
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+router = APIRouter(prefix="/markets", tags=["markets"])
 
-from app.services.common_service import get_db
-from app.services import market_service as svc
-from app.models.market_models import (
-    MarketCreate, MarketUpdate, MarketOut,
-    ProductCreate, ProductUpdate, ProductOut
-)
+# Mock 데이터
+mock_markets = [
+    {
+        "id": 1,
+        "name": "함평 나비쌀 마켓",
+        "description": "전남 함평의 대표 특산물 판매",
+        "address": "전라남도 함평군 함평읍",
+        "phone": "061-123-4567",
+        "products": [
+            {"id": 1, "name": "나비쌀 10kg", "price": 35000, "stock": 50},
+            {"id": 2, "name": "나비쌀 20kg", "price": 65000, "stock": 30},
+        ],
+    },
+    {
+        "id": 2,
+        "name": "부산 어묵 마켓",
+        "description": "부산 명물 어묵 판매",
+        "address": "부산광역시 중구",
+        "phone": "051-987-6543",
+        "products": [
+            {"id": 3, "name": "부산 어묵 세트", "price": 20000, "stock": 100},
+            {"id": 4, "name": "특선 어묵 모듬", "price": 30000, "stock": 80},
+        ],
+    },
+]
 
-router = APIRouter(prefix="/market", tags=["market"])
 
-# ---------- Market ----------
-@router.get("/stores", response_model=dict, summary="가게 리스트")
-def list_markets(
-    q: Optional[str] = Query(None, description="가게명/설명 검색어"),
-    region_id: Optional[int] = Query(None),
-    is_active: Optional[bool] = Query(True),
-    page: int = Query(1, ge=1),
-    size: int = Query(12, ge=1, le=100),
-    order_by: str = Query("recent", pattern="^(recent|name)$"),
-    db: Session = Depends(get_db),
-):
-    """
-    가게 목록을 검색/필터/정렬/페이지네이션해서 반환합니다.
-    """
-    try:
-        items, total = svc.list_markets(
-            db, q=q, region_id=region_id, is_active=is_active,
-            page=page, size=size, order_by=order_by
-        )
-        return {
-            "items": [MarketOut.model_validate(i) for i in items],
-            "page": page,
-            "size": size,
-            "total": total,
-            "total_pages": ceil(total / size) if size else 1
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"list_markets failed: {e}")
+@router.get("/")
+def list_markets():
+    """모든 로컬 마켓 목록"""
+    return mock_markets
 
-@router.get("/stores/{market_id}", response_model=MarketOut, summary="가게 상세")
-def get_market(market_id: int, db: Session = Depends(get_db)):
-    try:
-        obj = svc.get_market(db, market_id)
-        if not obj:
-            raise HTTPException(status_code=404, detail="가게를 찾을 수 없습니다.")
-        return obj
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"get_market failed: {e}")
 
-@router.post("/stores", response_model=MarketOut, status_code=status.HTTP_201_CREATED, summary="가게 생성")
-def create_market(payload: MarketCreate, db: Session = Depends(get_db)):
-    try:
-        obj = svc.create_market(db, payload)
-        return obj
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"create_market failed: {e}")
-
-@router.patch("/stores/{market_id}", response_model=MarketOut, summary="가게 수정")
-def update_market(market_id: int, payload: MarketUpdate, db: Session = Depends(get_db)):
-    try:
-        obj = svc.update_market(db, market_id, payload)
-        if not obj:
-            raise HTTPException(status_code=404, detail="가게를 찾을 수 없습니다.")
-        return obj
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"update_market failed: {e}")
-
-# ---------- Product ----------
-@router.get("/products", response_model=dict, summary="상품 리스트")
-def list_products(
-    q: Optional[str] = Query(None, description="상품명/요약 검색어"),
-    category_id: Optional[int] = Query(None),
-    region_id: Optional[int] = Query(None),
-    market_id: Optional[int] = Query(None),
-    status: Optional[str] = Query("ACTIVE"),
-    price_min: Optional[float] = Query(None, ge=0),
-    price_max: Optional[float] = Query(None, ge=0),
-    page: int = Query(1, ge=1),
-    size: int = Query(12, ge=1, le=100),
-    sort: str = Query("recent", pattern="^(recent|price_asc|price_desc|name)$"),
-    db: Session = Depends(get_db),
-):
-    """
-    상품 목록을 검색/필터/정렬/페이지네이션해서 반환합니다.
-    """
-    try:
-        items, total = svc.list_products(
-            db, q=q, category_id=category_id, region_id=region_id, market_id=market_id,
-            status=status, price_min=price_min, price_max=price_max, page=page, size=size, sort=sort
-        )
-        return {
-            "items": [ProductOut.model_validate(i) for i in items],
-            "page": page,
-            "size": size,
-            "total": total,
-            "total_pages": ceil(total / size) if size else 1
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"list_products failed: {e}")
-
-@router.get("/products/{product_id}", response_model=ProductOut, summary="상품 상세")
-def get_product(product_id: int, db: Session = Depends(get_db)):
-    try:
-        obj = svc.get_product(db, product_id)
-        if not obj:
-            raise HTTPException(status_code=404, detail="상품을 찾을 수 없습니다.")
-        return ProductOut.model_validate(obj)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"get_product failed: {e}")
-
-@router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 생성")
-def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
-    try:
-        obj = svc.create_product(db, payload)
-        return ProductOut.model_validate(obj)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"create_product failed: {e}")
-
-@router.patch("/products/{product_id}", response_model=ProductOut, summary="상품 수정")
-def update_product(product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)):
-    try:
-        obj = svc.update_product(db, product_id, payload)
-        if not obj:
-            raise HTTPException(status_code=404, detail="상품을 찾을 수 없습니다.")
-        return ProductOut.model_validate(obj)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"update_product failed: {e}")
+@router.get("/{market_id}")
+def get_market(market_id: int):
+    """특정 마켓 상세 조회"""
+    market = next((m for m in mock_markets if m["id"] == market_id), None)
+    return market or {"error": "Market not found"}

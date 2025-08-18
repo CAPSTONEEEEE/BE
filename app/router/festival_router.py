@@ -17,28 +17,6 @@ from app.models.festival_models import (
 
 router = APIRouter(prefix="/festivals", tags=["festival"])
 
-# ---------------- Mock Data ----------------
-mock_festivals = [
-    {
-        "id": 1,
-        "title": "서울 불꽃축제",
-        "region_id": 11,
-        "location": "서울 여의도 한강공원",
-        "start_date": "2025-09-01",
-        "end_date": "2025-09-03",
-        "description": "서울에서 열리는 불꽃놀이 축제",
-    },
-    {
-        "id": 2,
-        "title": "부산 국제영화제",
-        "region_id": 26,
-        "location": "부산 해운대",
-        "start_date": "2025-10-05",
-        "end_date": "2025-10-12",
-        "description": "아시아 최대 영화제",
-    },
-]
-
 # ---------- List ----------
 @router.get("/", response_model=dict, summary="축제 목록 조회")
 def list_festivals(
@@ -49,34 +27,46 @@ def list_festivals(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     order_by: str = Query("start", pattern="^(start|recent|title)$"),
-    
+    db: Session = Depends(get_db),
 ):
-    filtered = mock_festivals
-    if q:
-        filtered = [f for f in filtered if q.lower() in f["title"].lower() or q in f["location"]]
-    if region_id:
-        filtered = [f for f in filtered if f["region_id"] == region_id]
-
-    total = len(filtered)
-    start = (page - 1) * size
-    end = start + size
-    items = filtered[start:end]
-
-    return {
-        "items": [FestivalOut(**i) for i in items],
-        "page": page,
-        "size": size,
-        "total": total,
-        "total_pages": ceil(total / size) if size else 1,
-    }
+    """
+    축제/행사 목록을 검색/필터/정렬/페이지네이션하여 반환합니다.
+    """
+    try:
+        items, total = svc.list_festivals(
+            db=db,
+            q=q,
+            region_id=region_id,
+            start_date=start_date,
+            end_date=end_date,
+            page=page,
+            size=size,
+            order_by=order_by,
+        )
+        return {
+            "items": [FestivalOut.model_validate(i) for i in items],
+            "page": page,
+            "size": size,
+            "total": total,
+            "total_pages": ceil(total / size) if size else 1,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"list_festivals failed: {e}")
 
 # ---------- Retrieve ----------
 @router.get("/{festival_id}", response_model=FestivalOut, summary="축제 상세 조회")
-def get_festival(festival_id: int):
-    for f in mock_festivals:
-        if f["id"] == festival_id:
-            return FestivalOut(**f)
-    raise HTTPException(status_code=404, detail="Festival not found") 
+def get_festival(festival_id: int, db: Session = Depends(get_db)):
+    try:
+        obj = svc.get_festival_by_id(db=db, festival_id=festival_id)
+        if not obj:
+            raise HTTPException(status_code=404, detail="Festival not found")
+        return FestivalOut.model_validate(obj)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"get_festival failed: {e}")
 
 # ---------- Create ----------
 @router.post(
@@ -85,12 +75,14 @@ def get_festival(festival_id: int):
     status_code=status.HTTP_201_CREATED,
     summary="축제 생성",
 )
-def create_festival(payload: FestivalCreate):
-    new_id = max(f["id"] for f in mock_festivals) + 1 if mock_festivals else 1
-    new_festival = payload.dict()
-    new_festival["id"] = new_id
-    mock_festivals.append(new_festival)
-    return FestivalOut(**new_festival)
+def create_festival(payload: FestivalCreate, db: Session = Depends(get_db)):
+    try:
+        obj = svc.create_festival(db=db, data=payload)
+        return FestivalOut.model_validate(obj)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"create_festival failed: {e}")
 
 # ---------- Update (partial) ----------
 @router.patch(
@@ -117,7 +109,13 @@ def update_festival(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="축제 삭제",
 )
-def delete_festival(festival_id: int):
-    global mock_festivals
-    mock_festivals = [f for f in mock_festivals if f["id"] != festival_id]
-    return
+def delete_festival(festival_id: int, db: Session = Depends(get_db)):
+    try:
+        ok = svc.delete_festival(db=db, festival_id=festival_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Festival not found")
+        return
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"delete_festival failed: {e}")
