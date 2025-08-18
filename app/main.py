@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from app.router import users_router, content_router
 # 새로 만든 recommend_router를 임포트합니다.
 from app.router import recommend_router
+# 새로 만든 market_router를 임포트합니다.
+from app.router import market_router
 
 # .env 파일에서 환경 변수를 불러옵니다.
 load_dotenv()
@@ -24,3 +26,11 @@ app.include_router(users_router.router)
 
 # 각 기능별 router를 포함시킵니다.
 app.include_router(recommend_router.router)
+
+# 라우터 등록
+app.include_router(market_router.router)
+
+# 기본 root 엔드포인트
+@app.get("/")
+def root():
+    return {"message": "Sosohaeng Backend Mock API is running"}
