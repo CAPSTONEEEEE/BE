@@ -27,10 +27,8 @@ app.include_router(users_router.router)
 
 #app.include_router(content_router.router)
 
-# 각 기능별 router를 포함시킵니다.
+# 각 기능별 router 등록
 app.include_router(recommend_router.router)
-
-# 라우터 등록
 app.include_router(market_router.router)
 app.include_router(festival_router.router)
 
