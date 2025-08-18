@@ -1,6 +1,7 @@
 # app/services/market_service.py
 from __future__ import annotations
 from typing import Optional, Tuple, List
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, asc, desc, or_, and_
 
@@ -9,7 +10,7 @@ from app.models.market_models import (
     MarketCreate, MarketUpdate, ProductCreate, ProductUpdate
 )
 
-# ---------- 유틸 ----------
+# ---------- 내부 유틸 (이미지 URL 직렬화/역직렬화) ----------
 def _join_image_urls(urls: Optional[list[str]]) -> Optional[str]:
     if not urls:
         return None
@@ -59,7 +60,7 @@ def list_markets(
     is_active: Optional[bool] = True,
     page: int = 1,
     size: int = 12,
-    order_by: str = "recent"  # name|recent
+    order_by: str = "recent",  # name|recent
 ) -> Tuple[List[Market], int]:
     stmt = select(Market)
     conds = []
@@ -141,7 +142,7 @@ def list_products(
     price_max: Optional[float] = None,
     page: int = 1,
     size: int = 12,
-    sort: str = "recent"  # recent|price_asc|price_desc|name
+    sort: str = "recent",  # recent|price_asc|price_desc|name
 ) -> Tuple[List[Product], int]:
     stmt = select(Product)
     conds = []
@@ -177,7 +178,7 @@ def list_products(
     stmt = stmt.offset((page - 1) * size).limit(size)
     items = db.execute(stmt).scalars().all()
 
-    # image_urls 문자열을 리스트로 복구 (router에서 from_attributes로 직렬화 시 자동 변환 어려울 수 있어 미리 변환)
+    # 역직렬화: 문자열 → 리스트
     for p in items:
         p.image_urls = _split_image_urls(p.image_urls)
     return items, total
