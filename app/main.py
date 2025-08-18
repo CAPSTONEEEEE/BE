@@ -22,6 +22,7 @@ app = FastAPI(
 
 # 각 라우터를 메인 애플리케이션에 포함시킵니다.
 app.include_router(users_router.router)
+
 #app.include_router(content_router.router)
 
 # 각 기능별 router를 포함시킵니다.
