@@ -8,21 +8,6 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/festivals", tags=["festival"])
 
-# ---------- Mock Data ----------
-class Festival(BaseModel):
-    id: int
-    title: str
-    location: str
-    start_date: date
-    end_date: date
-    region_id: int
-
-# 임시 mock 데이터 (DB 대신 사용)
-mock_festivals = [
-    Festival(id=1, title="서울 불꽃축제", location="서울 여의도", start_date=date(2025, 10, 5), end_date=date(2025, 10, 5), region_id=1),
-    Festival(id=2, title="부산 바다축제", location="부산 해운대", start_date=date(2025, 8, 1), end_date=date(2025, 8, 7), region_id=2),
-    Festival(id=3, title="춘천 마임축제", location="강원 춘천", start_date=date(2025, 5, 25), end_date=date(2025, 5, 31), region_id=3),
-]
 
 # ---------- List ----------
 @router.get("/", response_model=dict, summary="축제 목록 조회")
