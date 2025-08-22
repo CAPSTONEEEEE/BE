@@ -1,31 +1,53 @@
-# app/models/recommend_models.py
+# backend/app/models/recommend_models.py
+
 from __future__ import annotations
 from typing import List, Optional
 from enum import Enum
 
 from pydantic import BaseModel, Field
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+# 데이터베이스 모델의 기본 클래스를 임포트
+from app.services.common_service import Base
 
 
 # -------------------------
-# 공통 (추천 항목 표현)
+# Pydantic 모델 (API 요청/응답용)
 # -------------------------
-class TravelDestination(BaseModel):
-    """추천 여행지 정보"""
-    title: str = Field(..., description="여행지 이름")
-    description: str = Field(..., description="여행지 요약 설명")
-    reason: Optional[List[str]] = Field(None, description="추천 이유(키 포인트 목록)")
+class Keywords(BaseModel):
+    keywords: List[str]
+
+class ContentItem(BaseModel):
+    title: str
+    keywords: List[str]
+
+class GptSummary(BaseModel):
+    text: str
+
+class SummaryResponse(BaseModel):
+    summary: str
+
+class RandomDestinationResponse(BaseModel):
+    title: str
+
 
 # -------------------------
-# 랜덤 추천
+# SQLAlchemy 모델 (데이터베이스 테이블용)
 # -------------------------
-class RandomRecommendRequest(BaseModel):
-    """랜덤 여행지 추천 요청"""
-    themes: List[str] = Field(..., description="선택한 테마 목록 (예: 휴양, 액티비티)")
 
-class RandomRecommendResponse(BaseModel):
-    """랜덤 여행지 추천 응답"""
-    message: str = Field(..., description="응답 메시지")
-    recommendations: List[TravelDestination] = Field(..., description="추천된 여행지")
+class UserKeyword(Base):
+    """
+    사용자의 관심 키워드를 저장하는 데이터베이스 테이블 모델.
+    """
+    __tablename__ = "user_keywords"
 
-# -------------------------
-# 대화 기반 추천
+    # 기본키
+    id = Column(Integer, primary_key=True, index=True)
+    # 사용자 ID (외래키, 실제 유저 테이블과 연결될 예정)
+    user_id = Column(Integer, index=True)
+    # 키워드 (쉼표로 구분된 문자열로 저장)
+    keywords = Column(String)
+    # 생성 시간
+    created_at = Column(DateTime, default=datetime.utcnow)
