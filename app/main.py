@@ -3,6 +3,16 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
+
+# models 관련 수정
+from app.database import engine
+from app.models.common_models import Base
+# 모델 등록(실서비스에선 Alembic 권장)
+import app.models.market_models      # noqa
+import app.models.festival_models    # noqa
+import app.models.recommend_models   # noqa
+
+
 # 다른 라우터 모듈을 가져옵니다.
 from app.router import users_router, content_router
 # 새로 만든 recommend_router를 임포트합니다.
