@@ -16,6 +16,13 @@ from app.services.common_service import Base
 # -------------------------
 # Pydantic 모델 (API 요청/응답용)
 # -------------------------
+
+class RecommendationItem(BaseModel):
+    id: int
+    title: str
+    location: str
+    rating: float
+
 class Keywords(BaseModel):
     keywords: List[str]
 

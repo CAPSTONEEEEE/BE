@@ -1,31 +1,32 @@
-# app/services/recommend_service.py
+# backend/app/services/recommend_service.py
+
 from __future__ import annotations
-
 import os
-import json
 import random
-import asyncio
 from typing import List, Optional
+import json
+import asyncio
 
-from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
-from app.models.recommend_models import (
-    RandomRecommendRequest,
-    RandomRecommendResponse,
-    ChatRecommendRequest,
-    ChatRecommendResponse,
-    TravelDestination,
-    ChatRole,
-)
+from app.models.recommend_models import UserKeyword
+from app.services.common_service import SessionLocal, Base, engine
 
-# OpenAI (선택 의존) — 없거나 키 미설정이면 더미 응답으로 폴백
+# 데이터베이스 테이블 생성
+Base.metadata.create_all(bind=engine)
+
+# ----------------------------------------------------
+# Pydantic 모델은 recommend_models.py에 이미 정의되어 있습니다.
+# ----------------------------------------------------
+
+# GPT API 호출을 위한 설정 (API 키가 없으면 더미 응답으로 대체)
 _OPENAI_AVAILABLE = True
 try:
     from openai import AsyncOpenAI  # type: ignore
-except Exception:
+except ImportError:
     _OPENAI_AVAILABLE = False
-
-
+    
 def _get_openai_client() -> Optional["AsyncOpenAI"]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not _OPENAI_AVAILABLE or not api_key:
@@ -35,135 +36,99 @@ def _get_openai_client() -> Optional["AsyncOpenAI"]:
 
 class RecommendationService:
     """
-    여행지 추천 로직 서비스
-    - 랜덤 추천: 내부 더미 데이터에서 샘플링
-    - 대화 기반 추천: OpenAI 호출(가능 시) 또는 더미 응답
+    여행지 추천 관련 비즈니스 로직 서비스
     """
 
-    # 임시 데이터셋 (테마별 후보)
-    DUMMY_DATA = {
-        "휴양": [
-            {"title": "제주도 서귀포", "description": "아름다운 해변과 조용한 분위기의 휴양지"},
-            {"title": "강릉 경포호", "description": "호수와 바다가 어우러진 평화로운 산책 코스"},
-            {"title": "여수 돌산도", "description": "밤바다 야경이 아름답고 휴식에 제격"},
-        ],
-        "액티비티": [
-            {"title": "속초 설악산", "description": "등산/케이블카로 즐기는 아웃도어 액티비티"},
-            {"title": "양양 서핑 해변", "description": "파도가 좋아 서핑 입문/숙련 모두 추천"},
-            {"title": "단양 패러글라이딩", "description": "창공에서 만나는 남한강 풍경"},
-        ],
-        "전시/관람형": [
-            {"title": "서울 예술의전당", "description": "다양한 공연/전시를 즐길 수 있는 복합 문화 공간"},
-            {"title": "전주 한옥마을", "description": "전통 한옥과 골목 산책, 먹거리 탐방"},
-            {"title": "부산 영화의 전당", "description": "국제영화제의 열기를 느끼는 명소"},
-        ],
-        "이색 체험": [
-            {"title": "담양 죽녹원", "description": "대나무 숲길 힐링과 이색 포토스팟"},
-            {"title": "평창 양떼목장", "description": "초원에서 양들과 교감하는 체험"},
-            {"title": "안동 하회마을", "description": "전통 민속마을에서의 고즈넉한 시간"},
-        ],
-    }
+    def __init__(self, db: Session):
+        self.db = db
+        self.openai_client = _get_openai_client()
 
-    async def get_random_recommendations(
-        self, request: RandomRecommendRequest
-    ) -> RandomRecommendResponse:
-        # 테마 매칭 후보 수집
-        candidates: List[TravelDestination] = []
-        for theme in request.themes:
-            if theme in self.DUMMY_DATA:
-                for d in self.DUMMY_DATA[theme]:
-                    candidates.append(
-                        TravelDestination(
-                            title=d["title"],
-                            description=d["description"],
-                            reason=[theme],
-                        )
-                    )
-
-        # 부족하면 전체에서 보충
-        if len(candidates) < 5:
-            all_items = [
-                TravelDestination(title=itm["title"], description=itm["description"])
-                for items in self.DUMMY_DATA.values()
-                for itm in items
-            ]
-            final = random.sample(all_items, k=min(5, len(all_items)))
+    def set_user_keywords(self, user_id: int, keywords: List[str]):
+        """
+        사용자의 관심 키워드를 데이터베이스에 저장하거나 업데이트합니다.
+        """
+        # 기존 키워드 확인 (임시로 user_id=1 가정)
+        user_keywords = self.db.query(UserKeyword).filter(UserKeyword.user_id == user_id).first()
+        
+        if user_keywords:
+            # 기존 키워드가 있으면 업데이트
+            user_keywords.keywords = ','.join(keywords)
+            self.db.commit()
+            self.db.refresh(user_keywords)
         else:
-            final = random.sample(candidates, k=5)
+            # 없으면 새로 생성
+            new_keywords = UserKeyword(user_id=user_id, keywords=','.join(keywords))
+            self.db.add(new_keywords)
+            self.db.commit()
+            self.db.refresh(new_keywords)
+        
+        return {"message": "키워드 설정 성공"}
 
-        return RandomRecommendResponse(
-            message="랜덤 여행지 추천이 완료되었습니다.",
-            recommendations=final,
-        )
+    def get_recommendations_by_keywords(self, user_id: int):
+        """
+        데이터베이스에 저장된 키워드를 바탕으로 콘텐츠를 추천합니다.
+        (현재는 Mock 데이터 사용)
+        """
+        # 데이터베이스에서 사용자의 키워드 조회 (임시로 user_id=1 가정)
+        user_keywords_db = self.db.query(UserKeyword).filter(UserKeyword.user_id == user_id).first()
+        if not user_keywords_db:
+            return {"message": "저장된 키워드가 없습니다."}
 
-    async def get_chat_recommendations(
-        self, request: ChatRecommendRequest
-    ) -> ChatRecommendResponse:
-        user_message = (
-            request.conversation[-1].content if request.conversation else ""
-        )
+        user_keywords = user_keywords_db.keywords.split(',')
 
-        client = _get_openai_client()
-        if client:
-            # OpenAI 호출(가능한 경우)
-            try:
-                prompt = (
-                    "다음 사용자의 선호와 대화를 바탕으로 한국 내 여행지 3곳을 추천해줘. "
-                    "각 여행지는 title, description, reason(키워드 배열) 필드를 포함해 JSON 배열로만 응답해.\n\n"
-                    f"사용자 마지막 메시지: {user_message}"
-                )
-                # gpt-4o-mini 등 경량 모델을 추천(실제 배포 환경에 맞춰 설정)
-                model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
-                resp = await client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful travel assistant."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.7,
-                )
-                content = resp.choices[0].message.content  # type: ignore[attr-defined]
-                data = json.loads(content)
-
-                recs = [
-                    TravelDestination(
-                        title=item.get("title", "추천 여행지"),
-                        description=item.get("description", ""),
-                        reason=item.get("reason", []),
-                    )
-                    for item in data
-                ]
-
-                return ChatRecommendResponse(
-                    message="대화 기반 맞춤형 여행지 추천이 완료되었습니다.",
-                    recommendations=recs,
-                )
-            except Exception as e:
-                # OpenAI 실패 → 더미로 폴백
-                print(f"[OpenAI error] {e} — fallback to dummy")
-                # 잠깐 대기(실패 시 딜레이가 있었다고 가정)
-                await asyncio.sleep(0.5)
-
-        # 폴백 응답(키 미설정/라이브러리 없음/에러)
-        dummy = [
-            TravelDestination(
-                title="서울 익선동 한옥마을",
-                description="복고풍 감성과 현대적 감성이 공존하는 골목 산책 코스",
-                reason=["도시", "레트로", "맛집"],
-            ),
-            TravelDestination(
-                title="인제 자작나무 숲",
-                description="사계절 내내 은은한 자작나무 숲에서 힐링 산책",
-                reason=["자연", "힐링", "산책"],
-            ),
-            TravelDestination(
-                title="군산 근대역사박물관",
-                description="근대사 전시로 역사적 배경을 배우기 좋은 실내 명소",
-                reason=["역사", "교육", "실내"],
-            ),
+        # 실제로는 이 부분에서 데이터베이스 쿼리를 통해 콘텐츠를 찾습니다.
+        # 예시: self.db.query(Content).filter(Content.keywords.overlaps(user_keywords))
+        
+        mock_data = [
+            {"title": "전주 한옥마을 맛집 투어", "keywords": ["전주", "맛집"]},
+            {"title": "함평 나비 대축제", "keywords": ["함평", "축제"]},
+            {"title": "제주도 해안도로 드라이브", "keywords": ["제주도", "여행"]},
         ]
-        return ChatRecommendResponse(
-            message="(폴백) 대화 기반 맞춤형 여행지 추천이 완료되었습니다.",
-            recommendations=dummy,
-        )
+        
+        recommended_content = []
+        for item in mock_data:
+            if any(keyword in user_keywords for keyword in item['keywords']):
+                recommended_content.append(item)
+                
+        return {"message": "추천 콘텐츠 리스트 조회 성공", "data": recommended_content}
+
+    async def get_gpt_summary(self, text: str):
+        """
+        GPT를 활용하여 텍스트를 요약합니다.
+        """
+        # 실제 GPT API 호출 로직
+        if self.openai_client:
+            try:
+                prompt = f"다음 텍스트를 3문장 이내로 요약해줘:\n\n{text}"
+                response = await self.openai_client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=100
+                )
+                summary = response.choices[0].message.content.strip()
+                return {"message": "텍스트 요약 성공", "data": {"summary": summary}}
+            except Exception as e:
+                print(f"[OpenAI API Error] {e} - Falling back to mock data.")
+                # API 호출 실패 시 더미 데이터로 대체
+                dummy_summary = f"'{text[:20]}...' 의 내용이 요약되었습니다."
+                return {"message": "텍스트 요약 성공", "data": {"summary": dummy_summary}}
+        else:
+            # API 키가 없거나 라이브러리가 설치되지 않은 경우
+            dummy_summary = f"'{text[:20]}...' 의 내용이 요약되었습니다."
+            return {"message": "텍스트 요약 성공", "data": {"summary": dummy_summary}}
+
+
+    def get_random_destination(self):
+        """
+        랜덤 여행지를 추천합니다.
+        """
+        destinations = [
+            "강원도 속초",
+            "경상북도 경주",
+            "전라남도 여수",
+            "충청북도 단양",
+            "부산 해운대",
+        ]
+        random_destination = random.choice(destinations)
+        return {"message": "랜덤 여행지 추천 성공", "data": {"title": random_destination}}
+
