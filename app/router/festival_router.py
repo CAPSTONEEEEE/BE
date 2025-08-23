@@ -1,99 +1,59 @@
-from __future__ import annotations
-from typing import Optional
-from math import ceil
+# app/router/festival_router.py
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from app.database import get_db
 from datetime import date
-
-from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel
+from app.models.festival_models import FestivalCreate, FestivalUpdate, FestivalOut
+from app.services.festival_services import (
+    list_festivals,
+    get_festival_by_id,
+    create_festival,
+    update_festival,
+    delete_festival,
+)
 
 router = APIRouter(prefix="/festivals", tags=["festival"])
 
-
 # ---------- List ----------
-@router.get("/", response_model=dict, summary="축제 목록 조회")
-def list_festivals(
-    q: Optional[str] = Query(None, description="축제명/장소 검색어"),
-    region_id: Optional[int] = Query(None, description="지역 ID(Regions)"),
-    start_date: Optional[date] = Query(None, description="행사 시작일(이후) 필터"),
-    end_date: Optional[date] = Query(None, description="행사 종료일(이전) 필터"),
+@router.get("/", response_model=List[FestivalOut], summary="축제 목록 조회")
+def list_festivals_api(
+    q: str | None = Query(None, description="축제명/장소 검색어"),
+    region_id: int | None = Query(None, description="지역 ID"),
+    start_date: date | None = None,
+    end_date: date | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     order_by: str = Query("start", pattern="^(start|recent|title)$"),
+    db: Session = Depends(get_db),
 ):
-    items = mock_festivals
-
-    # 검색어 필터
-    if q:
-        items = [f for f in items if q.lower() in f.title.lower() or q.lower() in f.location.lower()]
-
-    # 지역 필터
-    if region_id:
-        items = [f for f in items if f.region_id == region_id]
-
-    # 날짜 필터
-    if start_date:
-        items = [f for f in items if f.start_date >= start_date]
-    if end_date:
-        items = [f for f in items if f.end_date <= end_date]
-
-    total = len(items)
-    start = (page - 1) * size
-    end = start + size
-    items = items[start:end]
-
-    return {
-        "items": items,
-        "page": page,
-        "size": size,
-        "total": total,
-        "total_pages": ceil(total / size) if size else 1,
-    }
+    items, _ = list_festivals(db, q, region_id, start_date, end_date, page, size, order_by)
+    return items
 
 # ---------- Retrieve ----------
-@router.get("/{festival_id}", response_model=Festival, summary="축제 상세 조회")
-def get_festival(festival_id: int):
-    for f in mock_festivals:
-        if f.id == festival_id:
-            return f
-    raise HTTPException(status_code=404, detail="Festival not found")
+@router.get("/{festival_id}", response_model=FestivalOut, summary="축제 상세 조회")
+def get_festival_api(festival_id: int, db: Session = Depends(get_db)):
+    festival = get_festival_by_id(db, festival_id)
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival not found")
+    return festival
 
 # ---------- Create ----------
-class FestivalCreate(BaseModel):
-    title: str
-    location: str
-    start_date: date
-    end_date: date
-    region_id: int
-
-@router.post("/", response_model=Festival, status_code=status.HTTP_201_CREATED, summary="축제 생성")
-def create_festival(payload: FestivalCreate):
-    new_id = max(f.id for f in mock_festivals) + 1 if mock_festivals else 1
-    new_festival = Festival(id=new_id, **payload.dict())
-    mock_festivals.append(new_festival)
-    return new_festival
+@router.post("/", response_model=FestivalOut, status_code=status.HTTP_201_CREATED, summary="축제 생성")
+def create_festival_api(payload: FestivalCreate, db: Session = Depends(get_db)):
+    return create_festival(db, payload)
 
 # ---------- Update ----------
-class FestivalUpdate(BaseModel):
-    title: Optional[str] = None
-    location: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    region_id: Optional[int] = None
-
-@router.patch("/{festival_id}", response_model=Festival, summary="축제 수정")
-def update_festival(festival_id: int, payload: FestivalUpdate):
-    for idx, f in enumerate(mock_festivals):
-        if f.id == festival_id:
-            updated = f.copy(update=payload.dict(exclude_unset=True))
-            mock_festivals[idx] = updated
-            return updated
-    raise HTTPException(status_code=404, detail="Festival not found")
+@router.put("/{festival_id}", response_model=FestivalOut, summary="축제 수정")
+def update_festival_api(festival_id: int, payload: FestivalUpdate, db: Session = Depends(get_db)):
+    festival = update_festival(db, festival_id, payload)
+    if not festival:
+        raise HTTPException(status_code=404, detail="Festival not found")
+    return festival
 
 # ---------- Delete ----------
 @router.delete("/{festival_id}", status_code=status.HTTP_204_NO_CONTENT, summary="축제 삭제")
-def delete_festival(festival_id: int):
-    for idx, f in enumerate(mock_festivals):
-        if f.id == festival_id:
-            mock_festivals.pop(idx)
-            return
-    raise HTTPException(status_code=404, detail="Festival not found")
+def delete_festival_api(festival_id: int, db: Session = Depends(get_db)):
+    success = delete_festival(db, festival_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Festival not found")
