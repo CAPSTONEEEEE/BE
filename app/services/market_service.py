@@ -7,20 +7,8 @@ from sqlalchemy import select, func, asc, desc, or_, and_
 
 from app.models.market_models import (
     Market, Product, Category, Region,
-    MarketCreate, MarketUpdate, ProductCreate, ProductUpdate
+    MarketCreate, MarketUpdate, ProductCreate, ProductUpdate, ProductStatus
 )
-
-# ---------- 내부 유틸 (이미지 URL 직렬화/역직렬화) ----------
-def _join_image_urls(urls: Optional[list[str]]) -> Optional[str]:
-    if not urls:
-        return None
-    return ",".join(urls)
-
-def _split_image_urls(s: Optional[str]) -> Optional[list[str]]:
-    if not s:
-        return None
-    return [u for u in s.split(",") if u]
-
 
 # ---------- Market ----------
 def create_market(db: Session, data: MarketCreate) -> Market:
@@ -80,9 +68,8 @@ def list_markets(
         stmt = stmt.order_by(desc(Market.created_at))
 
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.offset((page - 1) * size).limit(size)
-    items = db.execute(stmt).scalars().all()
-    return items, total
+    rows = db.execute(stmt.offset((page - 1) * size).limit(size)).scalars().all()
+    return rows, total
 
 
 # ---------- Product ----------
@@ -94,8 +81,9 @@ def create_product(db: Session, data: ProductCreate) -> Product:
         price=data.price,
         stock=data.stock,
         unit=data.unit,
-        image_urls=_join_image_urls([str(u) for u in (data.image_urls or [])]),
-        status=data.status.value if hasattr(data.status, "value") else data.status,
+        # ⚠️ image_urls는 JSON 컬럼이므로 리스트 그대로 저장
+        image_urls=[str(u) for u in (data.image_urls or [])],
+        status=data.status if isinstance(data.status, ProductStatus) else ProductStatus(data.status),
         market_id=data.market_id,
         category_id=data.category_id,
         region_id=data.region_id,
@@ -110,11 +98,12 @@ def update_product(db: Session, product_id: int, data: ProductUpdate) -> Optiona
     if not obj:
         return None
     payload = data.dict(exclude_unset=True)
-    if "status" in payload and hasattr(payload["status"], "value"):
-        payload["status"] = payload["status"].value
-    if "image_urls" in payload:
-        payload["image_urls"] = _join_image_urls([str(u) for u in (payload["image_urls"] or [])])
+    if "status" in payload:
+        payload["status"] = payload["status"] if isinstance(payload["status"], ProductStatus) else ProductStatus(payload["status"])
+    # JSON 컬럼: 리스트 그대로 세팅
     for k, v in payload.items():
+        if k == "image_urls" and v is not None:
+            v = [str(u) for u in v]
         setattr(obj, k, v)
     db.commit()
     db.refresh(obj)
@@ -161,7 +150,6 @@ def list_products(
         conds.append(Product.price >= price_min)
     if price_max is not None:
         conds.append(Product.price <= price_max)
-
     if conds:
         stmt = stmt.where(and_(*conds))
 
@@ -175,10 +163,5 @@ def list_products(
         stmt = stmt.order_by(desc(Product.created_at))
 
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.offset((page - 1) * size).limit(size)
-    items = db.execute(stmt).scalars().all()
-
-    # 역직렬화: 문자열 → 리스트
-    for p in items:
-        p.image_urls = _split_image_urls(p.image_urls)
-    return items, total
+    rows = db.execute(stmt.offset((page - 1) * size).limit(size)).scalars().all()
+    return rows, total
