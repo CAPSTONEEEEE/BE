@@ -1,20 +1,37 @@
 # app/database.py
+import os
+from typing import Generator
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
-# ▶ SQLite (로컬 파일)
-SQLALCHEMY_DATABASE_URL = "sqlite:///./database.db"
+# .env 로드 (DATABASE_URL 우선)
+load_dotenv()
 
-# SQLite는 멀티스레드 접근 시 추가 옵션 필요
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+# 우선순위: .env -> 기본 SQLite 파일
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
+
+# 엔진 옵션: DB 엔진별로 안전 설정
+engine_kwargs = {
+    "pool_pre_ping": True,  # 끊어진 커넥션 자동 감지
+}
+
+# SQLite는 스레드 체크 옵션 필요
+if DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# get_db 함수 추가 (이 부분이 빠져있었어요)
-def get_db():
-    db = SessionLocal()
+def get_db() -> Generator[Session, None, None]:
+    """FastAPI 의존성 주입용 DB 세션 생성기"""
+    db: Session = SessionLocal()
     try:
         yield db
     finally:
