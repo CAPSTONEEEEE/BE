@@ -2,133 +2,124 @@
 
 from __future__ import annotations
 import os
+import json
 import random
 from typing import List, Optional
-import json
-import asyncio
-
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
-from app.models.recommend_models import UserKeyword
-from app.services.common_service import SessionLocal, Base, engine
+from app.models.recommend_models import (
+    Recommendation,
+    RecommendationCreate,
+    RecommendationUpdate,
+    RecommendationOut,
+    RandomRecommendRequest,
+    RandomRecommendResponse,
+    ChatRecommendRequest,
+    ChatRecommendResponse,
+)
+from fastapi import HTTPException
 
-# 데이터베이스 테이블 생성
-Base.metadata.create_all(bind=engine)
 
-# ----------------------------------------------------
-# Pydantic 모델은 recommend_models.py에 이미 정의되어 있습니다.
-# ----------------------------------------------------
-
-# GPT API 호출을 위한 설정 (API 키가 없으면 더미 응답으로 대체)
-_OPENAI_AVAILABLE = True
-try:
-    from openai import AsyncOpenAI  # type: ignore
-except ImportError:
-    _OPENAI_AVAILABLE = False
-    
-def _get_openai_client() -> Optional["AsyncOpenAI"]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not _OPENAI_AVAILABLE or not api_key:
-        return None
-    return AsyncOpenAI(api_key=api_key)
-
+# =========================
+# RecommendationService
+# =========================
 
 class RecommendationService:
     """
-    여행지 추천 관련 비즈니스 로직 서비스
+    추천 관련 비즈니스 로직 서비스.
+    - 데이터베이스와 직접 연동하여 추천 항목에 대한 CRUD 기능을 제공합니다.
     """
-
     def __init__(self, db: Session):
         self.db = db
-        self.openai_client = _get_openai_client()
 
-    def set_user_keywords(self, user_id: int, keywords: List[str]):
-        """
-        사용자의 관심 키워드를 데이터베이스에 저장하거나 업데이트합니다.
-        """
-        # 기존 키워드 확인 (임시로 user_id=1 가정)
-        user_keywords = self.db.query(UserKeyword).filter(UserKeyword.user_id == user_id).first()
+    def get_all_recommendations(self) -> List[Recommendation]:
+        """모든 추천 항목을 조회합니다."""
+        return self.db.query(Recommendation).all()
+
+    def get_recommendation_by_id(self, item_id: int) -> Optional[Recommendation]:
+        """ID로 특정 추천 항목을 조회합니다. 없으면 None 반환."""
+        item = self.db.query(Recommendation).filter(Recommendation.id == item_id).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="Recommendation not found")
+        return item
+
+    def create_recommendation(self, item_data: RecommendationCreate) -> Recommendation:
+        """새로운 추천 항목을 생성합니다."""
+        # Pydantic 모델의 데이터를 DB 모델에 맞게 변환
+        db_item = Recommendation(**item_data.model_dump())
+        self.db.add(db_item)
+        self.db.commit()
+        self.db.refresh(db_item)
+        return db_item
+
+    def update_recommendation(self, item_id: int, item_data: RecommendationUpdate) -> Recommendation:
+        """기존 추천 항목을 업데이트합니다."""
+        db_item = self.get_recommendation_by_id(item_id)
+        if not db_item:
+            raise HTTPException(status_code=404, detail="Recommendation not found")
         
-        if user_keywords:
-            # 기존 키워드가 있으면 업데이트
-            user_keywords.keywords = ','.join(keywords)
-            self.db.commit()
-            self.db.refresh(user_keywords)
+        # Pydantic 모델에서 변경된 필드만 추출하여 업데이트
+        update_data = item_data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_item, key, value)
+        
+        self.db.commit()
+        self.db.refresh(db_item)
+        return db_item
+
+    def delete_recommendation(self, item_id: int):
+        """추천 항목을 삭제합니다."""
+        db_item = self.get_recommendation_by_id(item_id)
+        if not db_item:
+            raise HTTPException(status_code=404, detail="Recommendation not found")
+
+        self.db.delete(db_item)
+        self.db.commit()
+        return {"message": "Recommendation deleted successfully"}
+
+    def get_random_recommendations(self, themes: List[str]) -> RandomRecommendResponse:
+        """
+        선택된 테마에 기반한 랜덤 여행지 추천 알고리즘을 구현합니다.
+        """
+        if not themes:
+            raise HTTPException(status_code=400, detail="Themes list cannot be empty")
+        
+        # `or_` 연산자를 사용하여 여러 테마에 해당하는 항목을 조회
+        filters = [Recommendation.tags.like(f'%"{theme}"%') for theme in themes]
+        recommendation_candidates = self.db.query(Recommendation).filter(or_(*filters)).all()
+
+        if not recommendation_candidates:
+            raise HTTPException(status_code=404, detail="No recommendations found for the given themes")
+
+        # 후보가 4개 이상이면 무작위로 4개만 선택, 아니면 전체 반환
+        if len(recommendation_candidates) > 4:
+            final_recommendations = random.sample(recommendation_candidates, 4)
         else:
-            # 없으면 새로 생성
-            new_keywords = UserKeyword(user_id=user_id, keywords=','.join(keywords))
-            self.db.add(new_keywords)
-            self.db.commit()
-            self.db.refresh(new_keywords)
-        
-        return {"message": "키워드 설정 성공"}
+            final_recommendations = recommendation_candidates
 
-    def get_recommendations_by_keywords(self, user_id: int):
+        # Pydantic 모델로 변환
+        recommendations_out = [RecommendationOut.model_validate(rec) for rec in final_recommendations]
+
+        return RandomRecommendResponse(
+            message="랜덤 여행지 추천이 완료되었습니다.",
+            recommendations=recommendations_out,
+        )
+
+    # 이 부분은 대화 기반 추천 로직이 들어갈 곳입니다.
+    # 기존 코드와 같이 OpenAI API를 활용하거나, 키워드 매칭 로직으로 구현할 수 있습니다.
+    async def get_chat_recommendations(self, request: ChatRecommendRequest) -> ChatRecommendResponse:
         """
-        데이터베이스에 저장된 키워드를 바탕으로 콘텐츠를 추천합니다.
-        (현재는 Mock 데이터 사용)
+        대화 기록을 바탕으로 맞춤형 여행지를 추천합니다.
         """
-        # 데이터베이스에서 사용자의 키워드 조회 (임시로 user_id=1 가정)
-        user_keywords_db = self.db.query(UserKeyword).filter(UserKeyword.user_id == user_id).first()
-        if not user_keywords_db:
-            return {"message": "저장된 키워드가 없습니다."}
-
-        user_keywords = user_keywords_db.keywords.split(',')
-
-        # 실제로는 이 부분에서 데이터베이스 쿼리를 통해 콘텐츠를 찾습니다.
-        # 예시: self.db.query(Content).filter(Content.keywords.overlaps(user_keywords))
-        
-        mock_data = [
-            {"title": "전주 한옥마을 맛집 투어", "keywords": ["전주", "맛집"]},
-            {"title": "함평 나비 대축제", "keywords": ["함평", "축제"]},
-            {"title": "제주도 해안도로 드라이브", "keywords": ["제주도", "여행"]},
+        # 현재는 더미 응답으로 폴백
+        dummy_data = [
+            Recommendation(title="서울 익선동 한옥마을", description="복고풍 감성", tags=json.dumps(["도시", "레트로"])),
+            Recommendation(title="인제 자작나무 숲", description="힐링 산책", tags=json.dumps(["자연", "힐링"])),
         ]
-        
-        recommended_content = []
-        for item in mock_data:
-            if any(keyword in user_keywords for keyword in item['keywords']):
-                recommended_content.append(item)
-                
-        return {"message": "추천 콘텐츠 리스트 조회 성공", "data": recommended_content}
-
-    async def get_gpt_summary(self, text: str):
-        """
-        GPT를 활용하여 텍스트를 요약합니다.
-        """
-        # 실제 GPT API 호출 로직
-        if self.openai_client:
-            try:
-                prompt = f"다음 텍스트를 3문장 이내로 요약해줘:\n\n{text}"
-                response = await self.openai_client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=100
-                )
-                summary = response.choices[0].message.content.strip()
-                return {"message": "텍스트 요약 성공", "data": {"summary": summary}}
-            except Exception as e:
-                print(f"[OpenAI API Error] {e} - Falling back to mock data.")
-                # API 호출 실패 시 더미 데이터로 대체
-                dummy_summary = f"'{text[:20]}...' 의 내용이 요약되었습니다."
-                return {"message": "텍스트 요약 성공", "data": {"summary": dummy_summary}}
-        else:
-            # API 키가 없거나 라이브러리가 설치되지 않은 경우
-            dummy_summary = f"'{text[:20]}...' 의 내용이 요약되었습니다."
-            return {"message": "텍스트 요약 성공", "data": {"summary": dummy_summary}}
-
-
-    def get_random_destination(self):
-        """
-        랜덤 여행지를 추천합니다.
-        """
-        destinations = [
-            "강원도 속초",
-            "경상북도 경주",
-            "전라남도 여수",
-            "충청북도 단양",
-            "부산 해운대",
-        ]
-        random_destination = random.choice(destinations)
-        return {"message": "랜덤 여행지 추천 성공", "data": {"title": random_destination}}
+        recommendations_out = [RecommendationOut.model_validate(rec) for rec in dummy_data]
+        return ChatRecommendResponse(
+            message="대화 기반 맞춤형 여행지 추천이 완료되었습니다.",
+            recommendations=recommendations_out
+        )
 
