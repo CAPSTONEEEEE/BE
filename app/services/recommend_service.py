@@ -16,7 +16,7 @@ load_dotenv()
 # =========================
 
 try:
-    openai_api_key = os.getenv("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")
+    openai_api_key = os.getenv("!!!!!!!OPENAI_API_KEY!!!!!!!!!!!!")
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
     openai_client = AsyncOpenAI(api_key=openai_api_key)
