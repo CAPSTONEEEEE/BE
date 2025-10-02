@@ -1,9 +1,8 @@
-# app/models/festival_models.py
 from __future__ import annotations
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -45,9 +44,11 @@ class FestivalBase(BaseModel):
     description: Optional[str] = None
     image_url: Optional[HttpUrl] = None
 
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+    # ✅ Pydantic v2 설정
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_by_name=True,  # (v1: allow_population_by_field_name)
+    )
 
 
 class FestivalCreate(FestivalBase):
@@ -65,8 +66,8 @@ class FestivalUpdate(BaseModel):
     description: Optional[str] = None
     image_url: Optional[HttpUrl] = None
 
-    class Config:
-        allow_population_by_field_name = True
+    # ✅ Pydantic v2 설정 (별도 from_attributes 불필요)
+    model_config = ConfigDict(validate_by_name=True)
 
 
 class FestivalOut(FestivalBase):
@@ -74,5 +75,5 @@ class FestivalOut(FestivalBase):
     created_at: datetime
     updated_at: Optional[datetime]
 
-    class Config:
-        orm_mode = True
+    # ✅ Pydantic v2 설정
+    model_config = ConfigDict(from_attributes=True, validate_by_name=True)

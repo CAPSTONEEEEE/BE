@@ -5,7 +5,15 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import BaseModel, Field, HttpUrl, conint, confloat, validator
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    ConfigDict,
+    conint,
+    confloat,
+    field_validator,
+)
 from sqlalchemy import (
     Integer, String, Text, DateTime, Boolean, ForeignKey,
     Numeric, Index, CheckConstraint, UniqueConstraint, Enum as SAEnum, JSON
@@ -204,8 +212,8 @@ class RegionOut(BaseModel):
     name: str
     code: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    # ✅ Pydantic v2
+    model_config = ConfigDict(from_attributes=True, validate_by_name=True)
 
 
 # ---- Category
@@ -224,8 +232,8 @@ class CategoryOut(BaseModel):
     name: str
     slug: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    # ✅ Pydantic v2
+    model_config = ConfigDict(from_attributes=True, validate_by_name=True)
 
 
 # ---- Market
@@ -271,8 +279,8 @@ class MarketOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    # ✅ Pydantic v2
+    model_config = ConfigDict(from_attributes=True, validate_by_name=True)
 
 
 # ---- Product
@@ -289,7 +297,9 @@ class ProductBase(BaseModel):
     category_id: Optional[int] = None
     region_id: Optional[int] = None
 
-    @validator("image_urls", pre=True)
+    # ✅ Pydantic v2: validator → field_validator
+    @field_validator("image_urls", mode="before")
+    @classmethod
     def _normalize_urls(cls, v):
         # 허용: None, [], 리스트/튜플/세트/콤마 문자열
         if v in (None, ""):
@@ -319,7 +329,8 @@ class ProductUpdate(BaseModel):
     category_id: Optional[int] = None
     region_id: Optional[int] = None
 
-    @validator("image_urls", pre=True)
+    @field_validator("image_urls", mode="before")
+    @classmethod
     def _normalize_urls(cls, v):
         if v in (None, ""):
             return None
@@ -347,5 +358,5 @@ class ProductOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    # ✅ Pydantic v2
+    model_config = ConfigDict(from_attributes=True, validate_by_name=True)
