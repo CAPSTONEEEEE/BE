@@ -1,125 +1,65 @@
-# backend/app/services/recommend_service.py
-
 from __future__ import annotations
 import os
 import json
 import random
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-
-from app.models.recommend_models import (
-    Recommendation,
-    RecommendationCreate,
-    RecommendationUpdate,
-    RecommendationOut,
-    RandomRecommendRequest,
-    RandomRecommendResponse,
-    ChatRecommendRequest,
-    ChatRecommendResponse,
-)
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from fastapi import HTTPException
+from pydantic import BaseModel, Field # 임시로 Pydantic 모델 임포트
 
+# 환경 변수 로드
+load_dotenv()
 
 # =========================
-# RecommendationService
+# AI 클라이언트 초기화
 # =========================
 
-class RecommendationService:
-    """
-    추천 관련 비즈니스 로직 서비스.
-    - 데이터베이스와 직접 연동하여 추천 항목에 대한 CRUD 기능을 제공합니다.
-    """
-    def __init__(self, db: Session):
-        self.db = db
+try:
+    openai_api_key = os.getenv("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")
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+    openai_client = AsyncOpenAI(api_key=openai_api_key)
+except Exception as e:
+    print(f"Error initializing OpenAI client: {e}")
+    openai_client = None
 
-    def get_all_recommendations(self) -> List[Recommendation]:
-        """모든 추천 항목을 조회합니다."""
-        return self.db.query(Recommendation).all()
+# =========================
+# 핵심 추천 서비스 로직
+# =========================
 
-    def get_recommendation_by_id(self, item_id: int) -> Optional[Recommendation]:
-        """ID로 특정 추천 항목을 조회합니다. 없으면 None 반환."""
-        item = self.db.query(Recommendation).filter(Recommendation.id == item_id).first()
-        if not item:
-            raise HTTPException(status_code=404, detail="Recommendation not found")
-        return item
+async def get_chatbot_response(user_message: str) -> str:
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="AI 서비스 연결에 문제가 있습니다. API 키를 확인해주세요.")
 
-    def create_recommendation(self, item_data: RecommendationCreate) -> Recommendation:
-        """새로운 추천 항목을 생성합니다."""
-        # Pydantic 모델의 데이터를 DB 모델에 맞게 변환
-        db_item = Recommendation(**item_data.model_dump())
-        self.db.add(db_item)
-        self.db.commit()
-        self.db.refresh(db_item)
-        return db_item
+    system_prompt = (
+        "당신은 소도시 여행을 전문적으로 추천해주는 친절한 여행 컨설턴트입니다. "
+        "사용자의 요청에 맞춰 한국의 소도시 여행지를 2~3개 추천하고, 그 이유를 간결하게 설명해주세요. "
+        "답변은 항상 한국어로 해야 합니다."
+    )
 
-    def update_recommendation(self, item_id: int, item_data: RecommendationUpdate) -> Recommendation:
-        """기존 추천 항목을 업데이트합니다."""
-        db_item = self.get_recommendation_by_id(item_id)
-        if not db_item:
-            raise HTTPException(status_code=404, detail="Recommendation not found")
-        
-        # Pydantic 모델에서 변경된 필드만 추출하여 업데이트
-        update_data = item_data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(db_item, key, value)
-        
-        self.db.commit()
-        self.db.refresh(db_item)
-        return db_item
-
-    def delete_recommendation(self, item_id: int):
-        """추천 항목을 삭제합니다."""
-        db_item = self.get_recommendation_by_id(item_id)
-        if not db_item:
-            raise HTTPException(status_code=404, detail="Recommendation not found")
-
-        self.db.delete(db_item)
-        self.db.commit()
-        return {"message": "Recommendation deleted successfully"}
-
-    def get_random_recommendations(self, themes: List[str]) -> RandomRecommendResponse:
-        """
-        선택된 테마에 기반한 랜덤 여행지 추천 알고리즘을 구현합니다.
-        """
-        if not themes:
-            raise HTTPException(status_code=400, detail="Themes list cannot be empty")
-        
-        # `or_` 연산자를 사용하여 여러 테마에 해당하는 항목을 조회
-        filters = [Recommendation.tags.like(f'%"{theme}"%') for theme in themes]
-        recommendation_candidates = self.db.query(Recommendation).filter(or_(*filters)).all()
-
-        if not recommendation_candidates:
-            raise HTTPException(status_code=404, detail="No recommendations found for the given themes")
-
-        # 후보가 4개 이상이면 무작위로 4개만 선택, 아니면 전체 반환
-        if len(recommendation_candidates) > 4:
-            final_recommendations = random.sample(recommendation_candidates, 4)
-        else:
-            final_recommendations = recommendation_candidates
-
-        # Pydantic 모델로 변환
-        recommendations_out = [RecommendationOut.model_validate(rec) for rec in final_recommendations]
-
-        return RandomRecommendResponse(
-            message="랜덤 여행지 추천이 완료되었습니다.",
-            recommendations=recommendations_out,
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini", 
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.7,
         )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"OpenAI API 호출 중 오류 발생: {e}")
+        raise HTTPException(status_code=500, detail="AI 응답을 처리하는 중 오류가 발생했습니다. 다시 시도해 주세요.")
 
-    # 이 부분은 대화 기반 추천 로직이 들어갈 곳입니다.
-    # 기존 코드와 같이 OpenAI API를 활용하거나, 키워드 매칭 로직으로 구현할 수 있습니다.
-    async def get_chat_recommendations(self, request: ChatRecommendRequest) -> ChatRecommendResponse:
-        """
-        대화 기록을 바탕으로 맞춤형 여행지를 추천합니다.
-        """
-        # 현재는 더미 응답으로 폴백
-        dummy_data = [
-            Recommendation(title="서울 익선동 한옥마을", description="복고풍 감성", tags=json.dumps(["도시", "레트로"])),
-            Recommendation(title="인제 자작나무 숲", description="힐링 산책", tags=json.dumps(["자연", "힐링"])),
-        ]
-        recommendations_out = [RecommendationOut.model_validate(rec) for rec in dummy_data]
-        return ChatRecommendResponse(
-            message="대화 기반 맞춤형 여행지 추천이 완료되었습니다.",
-            recommendations=recommendations_out
-        )
+# 임시 모델 정의 (recommend_models.py가 아직 제대로 연결되지 않았기 때문)
+class RecommendationOut(BaseModel):
+    id: int = Field(..., description="추천 항목의 고유 ID.")
+    title: str = Field(..., description="추천 항목의 제목.")
+    description: Optional[str] = Field(None, description="항목에 대한 간략한 설명.")
+    image_url: Optional[str] = Field(None, description="항목 이미지의 URL.")
+    tags: List[str] = Field([], description="항목과 관련된 태그 목록.")
 
+def get_random_recommendations_from_db(themes: List[str]):
+    # 이 부분은 현재 DB 연결이 없으므로 항상 404를 반환하도록 수정했습니다.
+    raise HTTPException(status_code=404, detail="No recommendations found for the given themes.")
