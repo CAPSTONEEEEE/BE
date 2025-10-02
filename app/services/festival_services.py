@@ -6,12 +6,11 @@ from datetime import date
 from sqlalchemy import select, func, asc, desc, and_, or_
 from sqlalchemy.orm import Session
 
-from app.models.festival_models import ( # Pydantic 모델 이름이 변경되었다고 가정
+from app.models.festival_models import (
     Festival,
-    FestivalCreateSchema as FestivalCreate,
-    FestivalUpdateSchema as FestivalUpdate,
+    FestivalCreate,  
+    FestivalUpdate,  
 )
-
 def list_festivals(
     db: Session,
     q: Optional[str] = None,
