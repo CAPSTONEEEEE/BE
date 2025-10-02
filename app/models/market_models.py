@@ -283,7 +283,7 @@ class MarketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, validate_by_name=True)
 
 
-# ---- Product
+# ---- Product ----
 class ProductBase(BaseModel):
     name: str = Field(..., max_length=140)
     summary: Optional[str] = Field(None, max_length=255)
@@ -360,3 +360,66 @@ class ProductOut(BaseModel):
 
     # ✅ Pydantic v2
     model_config = ConfigDict(from_attributes=True, validate_by_name=True)
+
+
+# --- 장바구니 & 찜 (추가) ---
+from typing import List, Optional
+from pydantic import BaseModel, Field, ConfigDict, conint
+from sqlalchemy import Integer, DateTime, ForeignKey, UniqueConstraint, CheckConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional["datetime"]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    product = relationship("Product", lazy="joined")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="uq_cart_user_product"),
+        CheckConstraint("quantity >= 1", name="ck_cart_quantity_ge_1"),
+    )
+
+class WishlistItem(Base):
+    __tablename__ = "wishlist_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False)
+    created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    product = relationship("Product", lazy="joined")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="uq_wishlist_user_product"),
+    )
+
+# ---- Pydantic (IO) ----
+class CartItemCreate(BaseModel):
+    user_id: int
+    product_id: int
+    quantity: conint(ge=1) = 1
+
+class CartItemUpdate(BaseModel):
+    quantity: conint(ge=1)
+
+class CartItemOut(BaseModel):
+    id: int
+    user_id: int
+    quantity: int
+    product: ProductOut
+    model_config = ConfigDict(from_attributes=True)
+
+class WishlistItemCreate(BaseModel):
+    user_id: int
+    product_id: int
+
+class WishlistItemOut(BaseModel):
+    id: int
+    user_id: int
+    product: ProductOut
+    model_config = ConfigDict(from_attributes=True)
