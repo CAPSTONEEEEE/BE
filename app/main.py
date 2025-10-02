@@ -46,4 +46,4 @@ app.include_router(festival_router.router)
 # 기본 root 엔드포인트
 @app.get("/")
 def root():
-    return {"message": "Welcome to the API!"}
+    return {"message": "Sosohaeng Backend Mock API is running"}
