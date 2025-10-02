@@ -6,12 +6,11 @@ from datetime import date
 from sqlalchemy import select, func, asc, desc, and_, or_
 from sqlalchemy.orm import Session
 
-from app.models.festival_models import (
+from app.models.festival_models import ( # Pydantic 모델 이름이 변경되었다고 가정
     Festival,
-    FestivalCreate,
-    FestivalUpdate,
+    FestivalCreateSchema as FestivalCreate,
+    FestivalUpdateSchema as FestivalUpdate,
 )
-
 
 def list_festivals(
     db: Session,
@@ -23,9 +22,10 @@ def list_festivals(
     size: int = 20,
     order_by: str = "start",
 ) -> Tuple[List[Festival], int]:
-    stmt = select(Festival)
+    
+    # 1. 필터링 조건을 먼저 구성합니다.
+    stmt_for_filtering = select(Festival)
     conds = []
-
     if q:
         like = f"%{q}%"
         conds.append(or_(Festival.title.ilike(like), Festival.location.ilike(like)))
@@ -35,26 +35,28 @@ def list_festivals(
         conds.append(Festival.event_end_date >= start_date)
     if end_date:
         conds.append(Festival.event_start_date <= end_date)
-
+    
     if conds:
-        stmt = stmt.where(and_(*conds))
+        stmt_for_filtering = stmt_for_filtering.where(and_(*conds))
 
+    # 2. 필터링된 결과의 전체 개수를 먼저 효율적으로 계산합니다.
+    total = db.scalar(select(func.count()).select_from(stmt_for_filtering.subquery()))
+    
+    # 3. 그 다음에 정렬과 페이징을 적용하여 실제 데이터를 가져옵니다.
+    stmt_for_data = stmt_for_filtering
     if order_by == "title":
-        stmt = stmt.order_by(asc(Festival.title))
+        stmt_for_data = stmt_for_data.order_by(asc(Festival.title))
     elif order_by == "recent":
-        stmt = stmt.order_by(desc(Festival.created_at))
+        stmt_for_data = stmt_for_data.order_by(desc(Festival.created_at))
     else:  # "start"
-        # SQLite에서 NULLS LAST를 지원하지 않으므로, 이와 유사한 동작을 하도록 수정
-        # NULL 값을 먼저 정렬하고, 그 다음에 오름차순으로 정렬합니다.
-        # 즉, NULL인 경우 1, 아닌 경우 0으로 만들어 정렬 우선순위를 줍니다.
-        stmt = stmt.order_by(
+        stmt_for_data = stmt_for_data.order_by(
             asc(Festival.event_start_date.is_(None)),
             asc(Festival.event_start_date)
         )
     
-    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.offset((page - 1) * size).limit(size)
-    items = db.execute(stmt).scalars().all()
+    stmt_for_data = stmt_for_data.offset((page - 1) * size).limit(size)
+    items = db.execute(stmt_for_data).scalars().all()
+    
     return items, total
 
 
@@ -63,15 +65,8 @@ def get_festival_by_id(db: Session, festival_id: int) -> Optional[Festival]:
 
 
 def create_festival(db: Session, data: FestivalCreate) -> Festival:
-    obj = Festival(
-        title=data.title,
-        location=data.location,
-        region_id=data.region_id,
-        event_start_date=data.start_date,
-        event_end_date=data.end_date,
-        description=data.description,
-        image_url=str(data.image_url) if data.image_url else None,
-    )
+    # **data.dict()를 사용하여 코드를 간결하게 만듭니다.
+    obj = Festival(**data.dict())
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -82,13 +77,12 @@ def update_festival(db: Session, festival_id: int, data: FestivalUpdate) -> Opti
     obj = db.get(Festival, festival_id)
     if not obj:
         return None
-    for k, v in data.dict(exclude_unset=True).items():
-        if k == "start_date":
-            setattr(obj, "event_start_date", v)
-        elif k == "end_date":
-            setattr(obj, "event_end_date", v)
-        else:
-            setattr(obj, k, v)
+    
+    # Pydantic과 SQLAlchemy 모델의 필드명이 일치한다고 가정하고 코드를 간결하게 만듭니다.
+    update_data = data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(obj, key, value)
+        
     db.commit()
     db.refresh(obj)
     return obj
