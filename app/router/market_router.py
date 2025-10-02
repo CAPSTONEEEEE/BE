@@ -15,7 +15,7 @@ from app.models.market_models import (
     MarketCreate, MarketUpdate, MarketOut,
     ProductCreate as ProductIn, ProductUpdate as ProductInUpdate, ProductOut
 )
-from pydantic import BaseModel, Field, conint
+from pydantic import BaseModel, Field, conint, ConfigDict
 
 router = APIRouter(prefix="/markets", tags=["markets"])
 
@@ -27,10 +27,14 @@ class ProductListResponse(BaseModel):
     total: int
     page: int
     size: int
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
-
+class MarketListResponse(BaseModel):
+    items: List[MarketOut]
+    total: int
+    page: int
+    size: int
+    model_config = ConfigDict(from_attributes=True)
 
 # ======================================================
 # ===============  상품 (DB 연동 CRUD)  ================
@@ -92,12 +96,11 @@ def delete_product_api(product_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Product not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-
 # ======================================================
 # ===============  마켓 (DB 연동 CRUD)  ================
 # ======================================================
 
-@router.get("", response_model=List[MarketOut], summary="마켓 목록")
+@router.get("", response_model=MarketListResponse, summary="마켓 목록")
 def list_markets_api(
     db: Session = Depends(get_db),
     q: str | None = Query(None, description="마켓명/설명 검색어"),
@@ -107,8 +110,16 @@ def list_markets_api(
     page: int = Query(1, ge=1),
     size: int = Query(12, ge=1, le=100),
 ):
-    items, _ = list_markets(db, q=q, region_id=region_id, is_active=is_active, page=page, size=size, order_by=order_by)
-    return items
+    items, total = list_markets(
+        db,
+        q=q,
+        region_id=region_id,
+        is_active=is_active,
+        page=page,
+        size=size,
+        order_by=order_by,
+    )
+    return {"items": items, "total": total, "page": page, "size": size}
 
 @router.get("/{market_id}", response_model=MarketOut, summary="마켓 상세")
 def get_market_api(market_id: int, db: Session = Depends(get_db)):
@@ -127,7 +138,6 @@ def update_market_api(market_id: int, payload: MarketUpdate, db: Session = Depen
     if not obj:
         raise HTTPException(status_code=404, detail="Market not found")
     return obj
-
 
 # ======================================================
 # ======  판매자/문의/후기 (기존 Mock 그대로 유지)  ======
