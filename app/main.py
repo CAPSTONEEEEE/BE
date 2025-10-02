@@ -78,7 +78,8 @@ app = FastAPI(
 #app.include_router(content_router.router)
 
 # 각 기능별 router 등록
-app.include_router(recommend_router.router)
+app.include_router(recommend_router.router, prefix="/api/v1") # 올바른 설정
+#app.include_router(recommend_router.router)
 app.include_router(market_router.router)
 app.include_router(festival_router.router)
 
