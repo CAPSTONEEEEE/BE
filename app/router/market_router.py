@@ -1,4 +1,3 @@
-# app/router/market_router.py
 from __future__ import annotations
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -8,12 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.market_service import (
+    # Market / Product
     create_market, update_market, get_market, list_markets,
-    create_product, update_product, get_product, delete_product, list_products
+    create_product, update_product, get_product, delete_product, list_products,
+    # Cart & Wishlist
+    add_to_cart, update_cart_item, remove_cart_item, clear_cart, list_cart,
+    add_wishlist, remove_wishlist, list_wishlist,
 )
 from app.models.market_models import (
     MarketCreate, MarketUpdate, MarketOut,
-    ProductCreate as ProductIn, ProductUpdate as ProductInUpdate, ProductOut
+    ProductCreate as ProductIn, ProductUpdate as ProductInUpdate, ProductOut,
+    CartItemCreate, CartItemUpdate, CartItemOut,
+    WishlistItemCreate, WishlistItemOut,
 )
 from pydantic import BaseModel, Field, conint, ConfigDict
 
@@ -36,9 +41,23 @@ class MarketListResponse(BaseModel):
     size: int
     model_config = ConfigDict(from_attributes=True)
 
+class PageCart(BaseModel):
+    items: List[CartItemOut]
+    total: int
+    page: int
+    size: int
+    model_config = ConfigDict(from_attributes=True)
+
+class PageWishlist(BaseModel):
+    items: List[WishlistItemOut]
+    total: int
+    page: int
+    size: int
+    model_config = ConfigDict(from_attributes=True)
+
 # ======================================================
 # ===============  상품 (DB 연동 CRUD)  ================
-#   ⚠️ 라우트 우선순위 때문에 상품 라우트를 먼저 선언
+#   ⚠️ 라우트 우선순위 때문에 고정/세부 경로를 먼저 선언
 # ======================================================
 
 @router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 등록")
@@ -72,7 +91,6 @@ def list_products_api(
         size=size,
         sort=sort,
     )
-    # ✅ FE 통일 스펙
     return {"items": items, "total": total, "page": page, "size": size}
 
 @router.get("/products/{product_id}", response_model=ProductOut, summary="상품 상세 정보")
@@ -97,7 +115,89 @@ def delete_product_api(product_id: int, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # ======================================================
+# ===============  장바구니 (DB 연동)  =================
+#   ⚠️ 동적 경로("/{market_id}")보다 위에 둬야 함
+# ======================================================
+
+@router.get("/cart", response_model=PageCart, summary="장바구니 목록")
+def list_cart_api(
+    user_id: int = Query(..., description="사용자 ID"),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    items, total = list_cart(db, user_id=user_id, page=page, size=size)
+    return {"items": items, "total": total, "page": page, "size": size}
+
+@router.post("/cart", response_model=CartItemOut, status_code=status.HTTP_201_CREATED, summary="장바구니 추가/누적")
+def add_cart_api(payload: CartItemCreate, db: Session = Depends(get_db)):
+    # 서비스에서 ValueError로 올려주는 에러를 404/400으로 변환
+    try:
+        return add_to_cart(db, payload)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "PRODUCT_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=400, detail="Invalid cart request")
+
+@router.patch("/cart/{cart_id}", response_model=CartItemOut, summary="장바구니 수량 변경")
+def update_cart_api(cart_id: int, payload: CartItemUpdate, db: Session = Depends(get_db)):
+    obj = update_cart_item(db, cart_id, payload)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+    return obj
+
+@router.delete("/cart/{cart_id}", status_code=status.HTTP_204_NO_CONTENT, summary="장바구니 항목 삭제")
+def delete_cart_api(cart_id: int, db: Session = Depends(get_db)):
+    ok = remove_cart_item(db, cart_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Cart item not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/cart", status_code=status.HTTP_204_NO_CONTENT, summary="장바구니 비우기")
+def clear_cart_api(user_id: int = Query(..., description="사용자 ID"), db: Session = Depends(get_db)):
+    clear_cart(db, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# ======================================================
+# ===============  찜하기 (DB 연동)  ===================
+#   ⚠️ 동적 경로("/{market_id}")보다 위에 둬야 함
+# ======================================================
+
+@router.get("/wishlist", response_model=PageWishlist, summary="찜 목록")
+def list_wishlist_api(
+    user_id: int = Query(..., description="사용자 ID"),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    items, total = list_wishlist(db, user_id=user_id, page=page, size=size)
+    return {"items": items, "total": total, "page": page, "size": size}
+
+@router.post("/wishlist", response_model=WishlistItemOut, status_code=status.HTTP_201_CREATED, summary="찜 추가")
+def add_wishlist_api(payload: WishlistItemCreate, db: Session = Depends(get_db)):
+    try:
+        return add_wishlist(db, payload.user_id, payload.product_id)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "PRODUCT_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=400, detail="Invalid wishlist request")
+
+@router.delete("/wishlist", status_code=status.HTTP_204_NO_CONTENT, summary="찜 삭제")
+def remove_wishlist_api(
+    user_id: int = Query(..., description="사용자 ID"),
+    product_id: int = Query(..., description="상품 ID"),
+    db: Session = Depends(get_db),
+):
+    ok = remove_wishlist(db, user_id, product_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist item not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# ======================================================
 # ===============  마켓 (DB 연동 CRUD)  ================
+#   ⚠️ 동적 경로는 항상 마지막 쪽에 배치
 # ======================================================
 
 @router.get("", response_model=MarketListResponse, summary="마켓 목록")
@@ -119,8 +219,11 @@ def list_markets_api(
         size=size,
         order_by=order_by,
     )
-    # ✅ FE 통일 스펙
     return {"items": items, "total": total, "page": page, "size": size}
+
+@router.post("", response_model=MarketOut, status_code=status.HTTP_201_CREATED, summary="마켓 생성")
+def create_market_api(payload: MarketCreate, db: Session = Depends(get_db)):
+    return create_market(db, payload)
 
 @router.get("/{market_id}", response_model=MarketOut, summary="마켓 상세")
 def get_market_api(market_id: int, db: Session = Depends(get_db)):
@@ -128,10 +231,6 @@ def get_market_api(market_id: int, db: Session = Depends(get_db)):
     if not obj:
         raise HTTPException(status_code=404, detail="Market not found")
     return obj
-
-@router.post("", response_model=MarketOut, status_code=status.HTTP_201_CREATED, summary="마켓 생성")
-def create_market_api(payload: MarketCreate, db: Session = Depends(get_db)):
-    return create_market(db, payload)
 
 @router.patch("/{market_id}", response_model=MarketOut, summary="마켓 수정")
 def update_market_api(market_id: int, payload: MarketUpdate, db: Session = Depends(get_db)):

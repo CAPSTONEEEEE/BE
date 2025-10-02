@@ -1,13 +1,13 @@
-# app/services/market_service.py
 from __future__ import annotations
 from typing import Optional, Tuple, List
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, asc, desc, or_, and_
+from sqlalchemy import select, func, asc, desc, or_, and_, delete
 
 from app.models.market_models import (
     Market, Product, Category, Region,
-    MarketCreate, MarketUpdate, ProductCreate, ProductUpdate, ProductStatus
+    MarketCreate, MarketUpdate, ProductCreate, ProductUpdate, ProductStatus,
+    CartItem, WishlistItem, CartItemCreate, CartItemUpdate
 )
 
 # ---------- Market ----------
@@ -165,3 +165,68 @@ def list_products(
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = db.execute(stmt.offset((page - 1) * size).limit(size)).scalars().all()
     return rows, total
+
+
+# ---------- Cart ----------
+def add_to_cart(db: Session, data: CartItemCreate):
+    existing = db.execute(
+        select(CartItem).where(CartItem.user_id == data.user_id, CartItem.product_id == data.product_id)
+    ).scalar_one_or_none()
+    if existing:
+        existing.quantity += data.quantity
+        db.commit(); db.refresh(existing)
+        return existing
+    obj = CartItem(user_id=data.user_id, product_id=data.product_id, quantity=data.quantity)
+    db.add(obj); db.commit(); db.refresh(obj)
+    return obj
+
+def update_cart_item(db: Session, cart_id: int, data: CartItemUpdate):
+    obj = db.get(CartItem, cart_id)
+    if not obj:
+        return None
+    obj.quantity = data.quantity
+    db.commit(); db.refresh(obj)
+    return obj
+
+def remove_cart_item(db: Session, cart_id: int) -> bool:
+    obj = db.get(CartItem, cart_id)
+    if not obj: return False
+    db.delete(obj); db.commit()
+    return True
+
+def clear_cart(db: Session, user_id: int):
+    db.execute(delete(CartItem).where(CartItem.user_id == user_id))
+    db.commit()
+    return True
+
+def list_cart(db: Session, user_id: int, page: int, size: int):
+    stmt = select(CartItem).where(CartItem.user_id == user_id).order_by(CartItem.id.desc())
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    items = db.execute(stmt.offset((page-1)*size).limit(size)).scalars().all()
+    return items, int(total or 0)
+
+
+# ---------- Wishlist ----------
+def add_wishlist(db: Session, user_id: int, product_id: int):
+    existing = db.execute(
+        select(WishlistItem).where(WishlistItem.user_id == user_id, WishlistItem.product_id == product_id)
+    ).scalar_one_or_none()
+    if existing:
+        return existing
+    obj = WishlistItem(user_id=user_id, product_id=product_id)
+    db.add(obj); db.commit(); db.refresh(obj)
+    return obj
+
+def remove_wishlist(db: Session, user_id: int, product_id: int) -> bool:
+    obj = db.execute(
+        select(WishlistItem).where(WishlistItem.user_id == user_id, WishlistItem.product_id == product_id)
+    ).scalar_one_or_none()
+    if not obj: return False
+    db.delete(obj); db.commit()
+    return True
+
+def list_wishlist(db: Session, user_id: int, page: int, size: int):
+    stmt = select(WishlistItem).where(WishlistItem.user_id == user_id).order_by(WishlistItem.id.desc())
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    items = db.execute(stmt.offset((page-1)*size).limit(size)).scalars().all()
+    return items, int(total or 0)
