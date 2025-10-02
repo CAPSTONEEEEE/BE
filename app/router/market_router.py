@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, status, Depends
+from fastapi import APIRouter, HTTPException, Query, status, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,9 +15,83 @@ from app.models.market_models import (
     MarketCreate, MarketUpdate, MarketOut,
     ProductCreate as ProductIn, ProductUpdate as ProductInUpdate, ProductOut
 )
-from pydantic import BaseModel, Field, conint, confloat
+from pydantic import BaseModel, Field, conint
 
 router = APIRouter(prefix="/markets", tags=["markets"])
+
+# ------------------------------------------------------
+# 공통: 목록 응답 스키마(페이지네이션)
+# ------------------------------------------------------
+class ProductListResponse(BaseModel):
+    items: List[ProductOut]
+    total: int
+    page: int
+    size: int
+
+    class Config:
+        from_attributes = True
+
+
+# ======================================================
+# ===============  상품 (DB 연동 CRUD)  ================
+#   ⚠️ 라우트 우선순위 때문에 '마켓 상세 /{market_id}'
+#      보다 '상품' 라우트를 먼저 선언합니다.
+# ======================================================
+
+@router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 등록")
+def create_product_api(payload: ProductIn, db: Session = Depends(get_db)):
+    return create_product(db, payload)
+
+@router.get("/products", response_model=ProductListResponse, summary="상품 목록")
+def list_products_api(
+    db: Session = Depends(get_db),
+    q: Optional[str] = Query(None, description="상품명/요약 검색어"),
+    market_id: Optional[int] = Query(None, description="특정 마켓 필터"),
+    category_id: Optional[int] = Query(None, description="카테고리"),
+    region_id: Optional[int] = Query(None, description="지역"),
+    status: Optional[str] = Query("ACTIVE", description="상태: ACTIVE/INACTIVE/OUT_OF_STOCK"),
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
+    sort: str = Query("recent", pattern="^(recent|price_asc|price_desc|name)$"),
+    page: int = Query(1, ge=1),
+    size: int = Query(12, ge=1, le=100),
+):
+    items, total = list_products(
+        db,
+        q=q,
+        category_id=category_id,
+        region_id=region_id,
+        market_id=market_id,
+        status=status,
+        price_min=min_price,
+        price_max=max_price,
+        page=page,
+        size=size,
+        sort=sort,
+    )
+    return {"items": items, "total": total, "page": page, "size": size}
+
+@router.get("/products/{product_id}", response_model=ProductOut, summary="상품 상세 정보")
+def get_product_api(product_id: int, db: Session = Depends(get_db)):
+    obj = get_product(db, product_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return obj
+
+@router.patch("/products/{product_id}", response_model=ProductOut, summary="상품 수정")
+def update_product_api(product_id: int, payload: ProductInUpdate, db: Session = Depends(get_db)):
+    obj = update_product(db, product_id, payload)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return obj
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT, summary="상품 삭제")
+def delete_product_api(product_id: int, db: Session = Depends(get_db)):
+    ok = delete_product(db, product_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 # ======================================================
 # ===============  마켓 (DB 연동 CRUD)  ================
@@ -56,69 +130,9 @@ def update_market_api(market_id: int, payload: MarketUpdate, db: Session = Depen
 
 
 # ======================================================
-# ===============  상품 (DB 연동 CRUD)  ================
-# ======================================================
-
-@router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 등록")
-def create_product_api(payload: ProductIn, db: Session = Depends(get_db)):
-    return create_product(db, payload)
-
-@router.get("/products", summary="상품 목록")
-def list_products_api(
-    db: Session = Depends(get_db),
-    q: Optional[str] = Query(None, description="상품명/요약 검색어"),
-    market_id: Optional[int] = Query(None, description="특정 마켓 필터"),
-    category_id: Optional[int] = Query(None, description="카테고리"),
-    region_id: Optional[int] = Query(None, description="지역"),
-    status: Optional[str] = Query("ACTIVE", description="상태: ACTIVE/INACTIVE/OUT_OF_STOCK"),
-    min_price: Optional[float] = Query(None, ge=0),
-    max_price: Optional[float] = Query(None, ge=0),
-    sort: str = Query("recent", pattern="^(recent|price_asc|price_desc|name)$"),
-    page: int = Query(1, ge=1),
-    size: int = Query(12, ge=1, le=100),
-):
-    items, total = list_products(
-        db,
-        q=q,
-        category_id=category_id,
-        region_id=region_id,
-        market_id=market_id,
-        status=status,
-        price_min=min_price,
-        price_max=max_price,
-        page=page,
-        size=size,
-        sort=sort,
-    )
-    return {"items": items, "total": total}
-
-@router.get("/products/{product_id}", response_model=ProductOut, summary="상품 상세 정보")
-def get_product_api(product_id: int, db: Session = Depends(get_db)):
-    obj = get_product(db, product_id)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return obj
-
-@router.patch("/products/{product_id}", response_model=ProductOut, summary="상품 수정")
-def update_product_api(product_id: int, payload: ProductInUpdate, db: Session = Depends(get_db)):
-    obj = update_product(db, product_id, payload)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return obj
-
-@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT, summary="상품 삭제")
-def delete_product_api(product_id: int, db: Session = Depends(get_db)):
-    ok = delete_product(db, product_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return
-
-
-# ======================================================
 # ======  판매자/문의/후기 (기존 Mock 그대로 유지)  ======
 # ======================================================
 
-# ---- 기존 Mock 스키마들 (그대로 유지) ----
 class SellerCreate(BaseModel):
     seller_name: str = Field(..., description="판매자 이름")
     phone: Optional[str] = Field(None, description="연락처")
@@ -154,7 +168,6 @@ class ReviewOut(ReviewCreate):
     product_id: int
     created_at: datetime
 
-# ---- In-memory Mock stores (그대로 유지) ----
 _mock_sellers: List[Dict] = []
 _mock_reviews: List[Dict] = []
 _next_seller_id = 1
@@ -182,11 +195,10 @@ def delete_seller(seller_id: int):
     if idx is None:
         raise HTTPException(status_code=404, detail="Seller not found")
     _mock_sellers.pop(idx)
-    return
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.post("/products/{product_id}/contact", response_model=ContactResponse, summary="실시간 채팅 시작(문의)")
 def start_contact(product_id: int, payload: ContactRequest):
-    # DB 확인 대신 간단 체크(기존 mock과 동일한 관용)
     return ContactResponse(
         ok=True,
         chat_room_id=f"chat_{product_id}_{payload.user_id}",

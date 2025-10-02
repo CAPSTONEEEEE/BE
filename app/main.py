@@ -2,6 +2,46 @@
 
 from fastapi import FastAPI
 from dotenv import load_dotenv
+import os
+
+# .env 로드 (DATABASE_URL 등)
+load_dotenv()
+
+# DB & 모델 등록 (실서비스는 Alembic 권장)
+from app.database import engine
+from app.models.common_models import Base
+import app.models.market_models      # noqa: F401
+import app.models.festival_models    # noqa: F401
+import app.models.recommend_models   # noqa: F401
+
+# 통합 라우터 (각 기능 라우터를 app/api.py에서 묶음)
+from app.api import api_router
+
+app = FastAPI(
+    title="소소행 API",
+    description="소도시 여행 추천 및 지역 콘텐츠 제공을 위한 RESTful API",
+    version="1.0.0",
+)
+
+# 개발 편의: DEV_AUTO_CREATE=true 일 때만 자동 테이블 생성
+if os.getenv("DEV_AUTO_CREATE", "false").lower() in ("1", "true", "yes"):
+    Base.metadata.create_all(bind=engine)
+
+# 통합 라우터 연결 (recommend/market/festival 등 포함)
+app.include_router(api_router)
+
+@app.get("/", tags=["root"])
+def root():
+    return {"message": "Sosohaeng Backend API is running", "docs": "/docs"}
+
+
+
+"""
+
+# backend/app/main.py
+
+from fastapi import FastAPI
+from dotenv import load_dotenv
 
 
 # models 관련 수정
@@ -46,3 +86,5 @@ app.include_router(festival_router.router)
 @app.get("/")
 def root():
     return {"message": "Sosohaeng Backend Mock API is running"}
+
+"""
