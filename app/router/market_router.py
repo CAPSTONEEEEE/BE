@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, conint, ConfigDict
 router = APIRouter(prefix="/markets", tags=["markets"])
 
 # ------------------------------------------------------
-# 공통: 목록 응답 스키마(페이지네이션)
+# 공통 페이지네이션 응답 스키마
 # ------------------------------------------------------
 class ProductListResponse(BaseModel):
     items: List[ProductOut]
@@ -38,8 +38,7 @@ class MarketListResponse(BaseModel):
 
 # ======================================================
 # ===============  상품 (DB 연동 CRUD)  ================
-#   ⚠️ 라우트 우선순위 때문에 '마켓 상세 /{market_id}'
-#      보다 '상품' 라우트를 먼저 선언합니다.
+#   ⚠️ 라우트 우선순위 때문에 상품 라우트를 먼저 선언
 # ======================================================
 
 @router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 등록")
@@ -73,6 +72,7 @@ def list_products_api(
         size=size,
         sort=sort,
     )
+    # ✅ FE 통일 스펙
     return {"items": items, "total": total, "page": page, "size": size}
 
 @router.get("/products/{product_id}", response_model=ProductOut, summary="상품 상세 정보")
@@ -119,6 +119,7 @@ def list_markets_api(
         size=size,
         order_by=order_by,
     )
+    # ✅ FE 통일 스펙
     return {"items": items, "total": total, "page": page, "size": size}
 
 @router.get("/{market_id}", response_model=MarketOut, summary="마켓 상세")
