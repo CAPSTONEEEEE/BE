@@ -1,0 +1,50 @@
+[
+  {
+    "id": "1",
+    "title": "함평 나비쌀",
+    "region": "전라",
+    "location": "전라남도 함평군 학교면 나비로 123",
+    "desc": "청정한 함평 들녘에서 재배한 고품질 쌀로, 찰기와 윤기가 뛰어나 밥맛이 좋습니다.",
+    "rating": 4.3,
+    "likes": 128,
+    "price": 32000,
+    "seller": "함평 고을농장",
+    "image": "https://picsum.photos/400/300?random=11"
+  },
+  {
+    "id": "2",
+    "title": "영월 토종꿀",
+    "region": "강원",
+    "location": "강원도 영월군 하동길 25",
+    "desc": "깨끗한 산간지대에서 채밀한 100% 자연산 토종꿀로 향과 효능이 뛰어납니다.",
+    "rating": 4.1,
+    "likes": 108,
+    "price": 28000,
+    "seller": "영월 양봉원",
+    "image": "https://picsum.photos/400/300?random=12"
+  },
+  {
+    "id": "3",
+    "title": "제주 감귤청",
+    "region": "제주",
+    "location": "제주도 서귀포시 감귤로 56",
+    "desc": "제주 감귤을 껍질째 저온 숙성하여 만든 천연 감귤청. 상큼하고 달콤한 향이 매력적입니다.",
+    "rating": 4.0,
+    "likes": 96,
+    "price": 25000,
+    "seller": "제주 향기농원",
+    "image": "https://picsum.photos/400/300?random=13"
+  },
+  {
+    "id": "4",
+    "title": "한방 블렌딩 차",
+    "region": "서울",
+    "location": "서울특별시 종로구 약령로 19",
+    "desc": "국내산 재료로 블렌딩한 향기로운 한방차. 선물용으로도 인기가 많습니다.",
+    "rating": 4.6,
+    "likes": 201,
+    "price": 15000,
+    "seller": "서울 약초상회",
+    "image": "https://picsum.photos/400/300?random=14"
+  }
+]
