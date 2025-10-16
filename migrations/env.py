@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sys
+import app.models.tour_models
 from logging.config import fileConfig
 
 from alembic import context

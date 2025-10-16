@@ -1,0 +1,33 @@
+[
+  {
+    "contentid": "2643538",
+    "title": "서울밤도깨비야시장 (샘플)",
+    "addr1": "서울특별시 영등포구 여의동로 330",
+    "eventstartdate": "20251003",
+    "eventenddate": "20251026",
+    "mapx": "126.9360813955",
+    "mapy": "37.5259436329",
+    "firstimage": "https://picsum.photos/400/200?random=5"
+  },
+  {
+    "contentid": "126511",
+    "title": "순천만 갈대 축제 (샘플)",
+    "addr1": "전라남도 순천시 순천만길 513-25",
+    "eventstartdate": "20251018",
+    "eventenddate": "20251102",
+    "mapx": "127.5144368140",
+    "mapy": "34.8873268413",
+    "firstimage": "https://picsum.photos/400/200?random=7"
+  },
+  {
+    "contentid": "2701358",
+    "title": "수원 화성문화제 (샘플)",
+    "addr1": "경기도 수원시 팔달구 정조로 825",
+    "eventstartdate": "20251003",
+    "eventenddate": "20251006",
+    "mapx": "127.0142859188",
+    "mapy": "37.2845233215",
+    "firstimage": "https://picsum.photos/400/200?random=9"
+  }
+]
+
