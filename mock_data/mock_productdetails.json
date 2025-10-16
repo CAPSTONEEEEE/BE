@@ -1,0 +1,413 @@
+{
+  "jeju_mandarin_syrup": {
+    "id": "jeju_mandarin_syrup",
+    "title": "제주 향기농원",
+    "productName": "제주 감귤청",
+    "region": "제주",
+    "location": "제주특별자치도 서귀포시 감귤로 56",
+    "rating": 4.6,
+    "likes": 312,
+    "price": 24000,
+    "sellerNote": "감귤 껍질의 향을 살리기 위해 저온 숙성만 고집합니다. 탄산수·요거트 어디에나 잘 어울려요.",
+    "images": [
+      "https://images.unsplash.com/photo-1517265035603-faefa167335b?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "제주산 감귤을 껍질째 설탕과 함께 숙성해 비타민과 풍미를 가득 담았습니다.",
+    "specs": [
+      { "k": "원재료", "v": "제주 감귤 60%, 백설탕 40%" },
+      { "k": "용량", "v": "500ml" },
+      { "k": "보관", "v": "냉장 보관" }
+    ],
+    "delivery": ["전국 택배 배송", "제주/도서산간 추가비 있음"]
+  },
+  "hampyeong_rice": {
+    "id": "hampyeong_rice",
+    "title": "함평 고을농장",
+    "productName": "함평 나비쌀 10kg",
+    "region": "전라",
+    "location": "전라남도 함평군 학교면 나비로 123",
+    "rating": 4.4,
+    "likes": 198,
+    "price": 32000,
+    "sellerNote": "논마다 수질검사를 통과한 물로만 재배합니다. 올해 수확분만 판매해요.",
+    "images": [
+      "https://images.unsplash.com/photo-1560807707-8cc77767d783?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "찰기·윤기가 좋아 밥맛이 탁월한 신곡(新穀) 쌀.",
+    "specs": [
+      { "k": "품종", "v": "일품" },
+      { "k": "등급", "v": "도정일자 30일 이내" }
+    ],
+    "delivery": ["전국 택배", "무료 도정 서비스"]
+  },
+  "yeongwol_honey": {
+    "id": "yeongwol_honey",
+    "title": "영월 양봉원",
+    "productName": "영월 토종꿀 2병",
+    "region": "강원",
+    "location": "강원도 영월군 하동길 25",
+    "rating": 4.5,
+    "likes": 221,
+    "price": 28000,
+    "sellerNote": "가열하지 않고 여과만 해서 꿀 본연의 향을 지켰습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "해발 고도 높은 벌통에서 채밀한 천연 벌꿀.",
+    "specs": [
+      { "k": "구성", "v": "500g × 2" },
+      { "k": "원산지", "v": "국내산" }
+    ],
+    "delivery": ["전국 택배", "여름철 아이스팩 동봉"]
+  },
+  "gangneung_drip_coffee": {
+    "id": "gangneung_drip_coffee",
+    "title": "안목 로스터스",
+    "productName": "강릉 드립백 세트(10개)",
+    "region": "강원",
+    "location": "강원도 강릉시 안목해변길 17",
+    "rating": 4.7,
+    "likes": 402,
+    "price": 18000,
+    "sellerNote": "바다를 보며 볶은 원두…는 농담이고요, 매일 소량 로스팅합니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1503481766315-7a586b20f66f?q=80&w=1200&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1442512595331-e89e73853f31?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "브라질·에티오피아 블렌드로 누구나 편하게 즐기는 밸런스.",
+    "specs": [
+      { "k": "로스팅", "v": "Medium" },
+      { "k": "원두", "v": "Brazil/Ethiopia Blend" }
+    ],
+    "delivery": ["전국 택배", "주 2회 로스팅 후 발송"]
+  },
+  "suncheon_gat_kimchi": {
+    "id": "suncheon_gat_kimchi",
+    "title": "순천 바른김치",
+    "productName": "순천 갓김치",
+    "region": "전라",
+    "location": "전라남도 순천시 장명로 88",
+    "rating": 4.3,
+    "likes": 174,
+    "price": 15000,
+    "sellerNote": "신선한 갓으로 그날 담가 당일 발송합니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1635363632165-49b8b9b5fbd7?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "매콤 짭짤 향긋한 남도식 갓김치.",
+    "specs": [
+      { "k": "중량", "v": "1kg" },
+      { "k": "보관", "v": "냉장" }
+    ],
+    "delivery": ["전국 냉장 택배"]
+  },
+  "boseong_matcha": {
+    "id": "boseong_matcha",
+    "title": "보성 녹차정원",
+    "productName": "보성 말차 파우더",
+    "region": "전라",
+    "location": "전라남도 보성군 보성읍 녹차로 12",
+    "rating": 4.6,
+    "likes": 265,
+    "price": 22000,
+    "sellerNote": "1·2차 수확 잎만 골라 미분화했습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1585238342029-34d24f4c0d49?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "라떼/디저트에 쓰기 좋은 프리미엄 말차.",
+    "specs": [
+      { "k": "등급", "v": "Ceremonial/Latte" },
+      { "k": "용량", "v": "50g" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "andong_soy_sauce": {
+    "id": "andong_soy_sauce",
+    "title": "안동 장독대",
+    "productName": "안동 재래식 간장",
+    "region": "경북",
+    "location": "경상북도 안동시 법흥동 77",
+    "rating": 4.5,
+    "likes": 189,
+    "price": 17000,
+    "sellerNote": "메주부터 직접 띄워 햇볕과 바람으로 숙성합니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1604908554028-612c1fb26a40?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "감칠맛 진한 한식 장(醬).",
+    "specs": [
+      { "k": "염도", "v": "16~18%" },
+      { "k": "용량", "v": "900ml" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "goseong_laver": {
+    "id": "goseong_laver",
+    "title": "거진 바다마켓",
+    "productName": "고성 명품 김",
+    "region": "강원",
+    "location": "강원도 고성군 거진읍 해맞이로 7",
+    "rating": 4.2,
+    "likes": 142,
+    "price": 9000,
+    "sellerNote": "첫 물김만 선별해 바삭함을 살렸습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1606787366850-de6330128bfc?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "고소하고 향 좋은 동해안 햇김.",
+    "specs": [
+      { "k": "구성", "v": "전장 10매" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "tongyeong_oyster_sauce": {
+    "id": "tongyeong_oyster_sauce",
+    "title": "통영 바다창고",
+    "productName": "통영 굴 소스",
+    "region": "경남",
+    "location": "경상남도 통영시 중앙로 21",
+    "rating": 4.4,
+    "likes": 210,
+    "price": 13000,
+    "sellerNote": "굴 풍미를 더하고 첨가물은 최소화했습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1604908813116-ec9b52e9bde3?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "볶음·국물에 한 스푼으로 감칠맛 업.",
+    "specs": [
+      { "k": "용량", "v": "300ml" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "jeonju_redbean_bread": {
+    "id": "jeonju_redbean_bread",
+    "title": "전주빵연구소",
+    "productName": "전주 수제 단팥빵 6개입",
+    "region": "전라",
+    "location": "전라북도 전주시 완산구 경기전길 3",
+    "rating": 4.1,
+    "likes": 133,
+    "price": 12000,
+    "sellerNote": "직접 삶은 통팥을 넉넉히 채웠습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1541976076758-347942db1970?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "달지 않고 고소한 수제 단팥빵.",
+    "specs": [
+      { "k": "유통", "v": "제조일로부터 3일" }
+    ],
+    "delivery": ["전국 택배(월~목 출고)"]
+  },
+  "sokcho_dried_pollack": {
+    "id": "sokcho_dried_pollack",
+    "title": "속초 청년어장",
+    "productName": "속초 황태채",
+    "region": "강원",
+    "location": "강원도 속초시 중앙로 125",
+    "rating": 4.3,
+    "likes": 155,
+    "price": 16000,
+    "sellerNote": "북서풍에 잘 말린 부드러운 식감.",
+    "images": [
+      "https://images.unsplash.com/photo-1625944528170-0f2ef749398a?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "국·무침 모두 잘 어울리는 황태채.",
+    "specs": [
+      { "k": "중량", "v": "300g" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "uiseong_garlic_oil": {
+    "id": "uiseong_garlic_oil",
+    "title": "의성 마늘창고",
+    "productName": "의성 마늘 오일",
+    "region": "경북",
+    "location": "경상북도 의성군 의성읍 중앙길 11",
+    "rating": 4.5,
+    "likes": 201,
+    "price": 14000,
+    "sellerNote": "국내산 마늘을 저온 인퓨즈드해 향을 살렸습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1604908177370-0e7f3f2fdc19?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "볶음·파스타 어디든 한 스푼.",
+    "specs": [
+      { "k": "용량", "v": "250ml" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "goheung_yuzu_tea": {
+    "id": "goheung_yuzu_tea",
+    "title": "고흥 유자원",
+    "productName": "고흥 유자차",
+    "region": "전라",
+    "location": "전라남도 고흥군 고흥읍 녹동로 9",
+    "rating": 4.6,
+    "likes": 275,
+    "price": 19000,
+    "sellerNote": "유자 과육이 살아있는 상큼함.",
+    "images": [
+      "https://images.unsplash.com/photo-1600026453241-86d8f47dd0f2?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "겨울철 목 건강에 좋은 전통 유자차.",
+    "specs": [
+      { "k": "용량", "v": "1kg" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "damyang_bamboo_salt": {
+    "id": "damyang_bamboo_salt",
+    "title": "담양 솔티크래프트",
+    "productName": "담양 죽염",
+    "region": "전라",
+    "location": "전라남도 담양군 담양읍 죽녹원로 31",
+    "rating": 4.2,
+    "likes": 123,
+    "price": 11000,
+    "sellerNote": "대나무 통에 소금을 구워 쓴맛을 줄였습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "깊고 순한 짠맛의 프리미엄 소금.",
+    "specs": [
+      { "k": "굵기", "v": "중립" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "geoje_brown_seaweed": {
+    "id": "geoje_brown_seaweed",
+    "title": "거제 바다풍경",
+    "productName": "거제 자연산 미역",
+    "region": "경남",
+    "location": "경상남도 거제시 장승포로 77",
+    "rating": 4.3,
+    "likes": 147,
+    "price": 8000,
+    "sellerNote": "수확 직후 저온 건조해 영양 손실을 줄였습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "국물 맛을 살려주는 진득한 미역.",
+    "specs": [
+      { "k": "중량", "v": "200g" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "jinju_pear_juice": {
+    "id": "jinju_pear_juice",
+    "title": "진주 과일연구소",
+    "productName": "진주 배즙 30포",
+    "region": "경남",
+    "location": "경상남도 진주시 촉석로 45",
+    "rating": 4.4,
+    "likes": 232,
+    "price": 23000,
+    "sellerNote": "원물 그대로 착즙해 단맛이 깔끔합니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1571772805064-207c8435df79?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "아침 한 포로 상쾌하게!",
+    "specs": [
+      { "k": "구성", "v": "80ml × 30포" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "hadong_black_tea": {
+    "id": "hadong_black_tea",
+    "title": "악양 다원",
+    "productName": "하동 발효 흑차",
+    "region": "경남",
+    "location": "경상남도 하동군 악양면 평사리길 20",
+    "rating": 4.6,
+    "likes": 266,
+    "price": 26000,
+    "sellerNote": "전통 발효로 떫은맛을 낮춘 부드러운 풍미.",
+    "images": [
+      "https://images.unsplash.com/photo-1532660621034-fb55e2e59762?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "식후에 부드럽게 마시기 좋은 흑차.",
+    "specs": [
+      { "k": "중량", "v": "70g" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "goryeong_chili_flakes": {
+    "id": "goryeong_chili_flakes",
+    "title": "대가야 농장",
+    "productName": "고령 햇고춧가루",
+    "region": "경북",
+    "location": "경상북도 고령군 대가야로 9",
+    "rating": 4.3,
+    "likes": 188,
+    "price": 20000,
+    "sellerNote": "색이 곱고 과육이 두꺼워 매운맛이 진합니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1598514982831-8f3d0e0b2b3f?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "김치·찌개에 최적화된 국내산 고춧가루.",
+    "specs": [
+      { "k": "입자", "v": "중·굵음" },
+      { "k": "중량", "v": "500g" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "muan_sweet_potato_chips": {
+    "id": "muan_sweet_potato_chips",
+    "title": "무안 농가간식",
+    "productName": "무안 고구마 칩",
+    "region": "전라",
+    "location": "전라남도 무안군 무안로 66",
+    "rating": 4.2,
+    "likes": 139,
+    "price": 9000,
+    "sellerNote": "설탕 없이 에어베이크로 바삭함을 살렸습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "한 봉지 순삭! 담백 달콤 간식.",
+    "specs": [
+      { "k": "중량", "v": "120g" }
+    ],
+    "delivery": ["전국 택배"]
+  },
+  "seosan_flatfish_jeot": {
+    "id": "seosan_flatfish_jeot",
+    "title": "서산 우리바다",
+    "productName": "서산 가자미젓",
+    "region": "충남",
+    "location": "충청남도 서산시 해미면 서산로 3",
+    "rating": 4.1,
+    "likes": 112,
+    "price": 13000,
+    "sellerNote": "숙성 시간을 충분히 가져 비린맛을 낮췄습니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1604908554655-522c1f0e6f0d?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "밥도둑으로 유명한 해산물 젓갈.",
+    "specs": [
+      { "k": "중량", "v": "300g" }
+    ],
+    "delivery": ["전국 냉장 택배"]
+  },
+  "pyeongchang_cheese": {
+    "id": "pyeongchang_cheese",
+    "title": "대관령 치즈목장",
+    "productName": "평창 목장 치즈 세트",
+    "region": "강원",
+    "location": "강원도 평창군 대관령면 목장길 5",
+    "rating": 4.7,
+    "likes": 318,
+    "price": 27000,
+    "sellerNote": "모짜렐라·리코타를 신선 발송합니다.",
+    "images": [
+      "https://images.unsplash.com/photo-1542442818-287065730d79?q=80&w=1200&auto=format&fit=crop"
+    ],
+    "summary": "부드러운 식감과 우유 향이 살아있는 수제 치즈.",
+    "specs": [
+      { "k": "구성", "v": "모짜 200g + 리코타 200g" },
+      { "k": "보관", "v": "냉장" }
+    ],
+    "delivery": ["전국 냉장 택배(월~목 출고)"]
+  }
+}
