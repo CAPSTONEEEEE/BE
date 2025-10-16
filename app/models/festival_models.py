@@ -7,7 +7,7 @@ from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from app.models.common_models import Base
+from app.db.database import Base
 
 
 # -------------------------
@@ -20,7 +20,7 @@ class Festival(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     
     # 2. contentid도 mapped_column 스타일로 통일하고, primary_key=True는 제거
-    contentid: Mapped[str] = mapped_column(String, unique=True, index=True)
+    contentid: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     
     title: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     location: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)

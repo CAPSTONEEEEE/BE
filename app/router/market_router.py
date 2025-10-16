@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, status, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.db.database import get_db
 from app.services.market_service import (
     # Market / Product
     create_market, update_market, get_market, list_markets,

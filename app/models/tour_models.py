@@ -6,9 +6,7 @@ from sqlalchemy import Integer, String, Text, DateTime, Float
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-
-# 데이터베이스 모델의 기본 클래스를 임포트합니다.
-from app.models.common_models import Base
+from app.db.database import Base
 
 
 class TourData(Base):

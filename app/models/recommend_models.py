@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
 
-from app.models.common_models import Base
+from app.db.database import Base
 
 
 # =========================

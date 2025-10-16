@@ -20,7 +20,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 
-from app.models.common_models import Base  # DeclarativeBase
+from app.db.database import Base
+
 
 
 # =========================

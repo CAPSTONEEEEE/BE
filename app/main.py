@@ -11,8 +11,8 @@ from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 
 # models 관련 수정
-from app.database import engine
-from app.models.common_models import Base
+from app.db.database import engine
+from app.db.database import Base
 import app.models.market_models      # noqa
 import app.models.festival_models    # noqa
 import app.models.recommend_models   # noqa
@@ -20,6 +20,7 @@ import app.models.recommend_models   # noqa
 from app.router import recommend_router
 from app.router import market_router
 from app.router import festival_router
+from app.router import users_router
 
 load_dotenv()
 
@@ -28,6 +29,7 @@ app = FastAPI(
     description="소도시 여행 추천 및 지역 콘텐츠 제공을 위한 RESTful API",
     version="1.0.0"
 )
+origins = ["*"] # 모든 출처를 허용 (개발용)
 
 # ===== CORS (그대로 유지) =====
 origins = ["*"]  # 내부망/디바이스 접근용 임시 전체 허용
@@ -52,8 +54,9 @@ app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
 
 # 기능 라우터
 app.include_router(recommend_router.router, prefix="/api/v1")
-app.include_router(market_router.router)
-app.include_router(festival_router.router)
+app.include_router(market_router.router, prefix="/api/v1")
+app.include_router(festival_router.router, prefix="/api/v1")
+app.include_router(users_router.router, prefix="/api/v1")
 
 @app.get("/")
 def root():

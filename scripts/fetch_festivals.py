@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app import database
 from app.models import festival_models
+from datetime import datetime
 
 def fetch_and_store_festivals():
     """
@@ -94,6 +95,7 @@ def fetch_and_store_festivals():
 
     festivals_to_create = []
     festivals_to_update = []
+    
 
     for _, row in df.iterrows():
         content_id = str(row.get('contentid'))

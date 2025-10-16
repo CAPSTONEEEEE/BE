@@ -2,7 +2,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.db.database import get_db
 from datetime import date
 from app.models.festival_models import FestivalCreate, FestivalUpdate, FestivalOut
 from app.services.festival_services import (
