@@ -1,28 +1,33 @@
 # scripts/fetch_festivals.py
+
 import requests
 import json
-import pandas as pd
-from sqlalchemy.orm import Session
-from app.core.config import get_settings
-from app import database
-from app.models import festival_models
-from datetime import datetime
+# import pandas as pd # (DB 저장을 안 하므로 Pandas 불필요)
+# from sqlalchemy.orm import Session # (DB 연결 제거)
+# from app.core.config import get_settings # (DB/API 키 지금 불필요)
+# from app import database # (DB 연결 제거 - ImportError의 원인)
+# from app.models import festival_models # (DB 연결 제거)
+from datetime import datetime # (현재 사용되진 않지만, 나중을 위해 유지)
+# from app.db.database import get_db, Base # (DB 연결 제거)
 
 def fetch_and_store_festivals():
     """
-    TourAPI 또는 로컬 목(Mock) 데이터로부터 축제 데이터를 가져와 DB에 저장합니다.
+    [데모 모드] TourAPI 또는 로컬 목(Mock) 데이터로부터 축제 데이터를 가져와
+    DB에 저장하는 대신 ***콘솔에 출력***합니다.
     """
-    settings = get_settings()
-    db: Session = next(database.get_db())
     
-    # --- 1. DB에 이미 있는 데이터의 ID 목록을 가져옵니다. ---
-    try:
-        existing_ids_query = db.query(festival_models.Festival.contentid).all()
-        existing_ids = {str(id_tuple[0]) for id_tuple in existing_ids_query}
-    except Exception as e:
-        print(f"DB 조회 중 오류 발생: {e}")
-        db.close()
-        return
+    # settings = get_settings() # (DB/API 불필요)
+    # db: Session = next(get_db()) # (DB 연결 제거)
+    
+    # --- 1. DB 조회 로직 (전부 제거) ---
+    # try:
+    #     existing_ids_query = db.query(festival_models.Festival.contentid).all()
+    #     existing_ids = {str(id_tuple[0]) for id_tuple in existing_ids_query}
+    # except Exception as e:
+    #     print(f"DB 조회 중 오류 발생: {e}")
+    #     db.close() # (DB 연결 제거)
+    #     return
+    
     # --- 2. 데이터 가져오기 ---
     # TourAPI가 정상일 때는 아래 주석을 풀고, '목 데이터 로직' 부분을 주석 처리하세요.
     
@@ -73,24 +78,34 @@ def fetch_and_store_festivals():
     # ===============================================================
     items = []
     try:
+        # 스크립트 실행 위치(BE) 기준으로 경로가 올바른지 확인하세요.
         with open('mock_data/mock_festivals.json', 'r', encoding='utf-8') as f:
             items = json.load(f)
         print(f"✅ 목 데이터 파일에서 {len(items)}개의 아이템을 성공적으로 불러왔습니다.")
     except FileNotFoundError:
         print("❌ 에러: 'BE/mock_data/mock_festivals.json' 파일을 찾을 수 없습니다.")
-        db.close()
+        # db.close() # (DB 연결 제거)
         return
     except json.JSONDecodeError:
         print("❌ 에러: JSON 파일 형식이 잘못되었습니다.")
-        db.close()
+        # db.close() # (DB 연결 제거)
         return
     # ===============================================================
+    
     if not items:
-        print("저장할 데이터가 없습니다.")
-        db.close()
+        print("표시할 데이터가 없습니다.")
+        # db.close() # (DB 연결 제거)
         return
 
-    # --- 3. Pandas DataFrame으로 변환 및 DB 저장 ---
+    # --- 3. DB 저장 대신 콘솔에 출력 (핵심 수정) ---
+    print("\n--- [데모] 목 데이터 출력 시작 ---")
+    
+    # indent=2로 가독성 높게, ensure_ascii=False로 한글이 깨지지 않게 출력
+    print(json.dumps(items, indent=2, ensure_ascii=False))
+    
+    print("--- [데모] 목 데이터 출력 완료 ---")
+    
+""" # --- 3. Pandas DataFrame으로 변환 및 DB 저장 ---
     df = pd.json_normalize(items)
 
     festivals_to_create = []
@@ -136,8 +151,7 @@ def fetch_and_store_festivals():
         db.rollback()
     finally:
         db.close()
-        print("DB 저장 완료")
+        print("DB 저장 완료")"""
 
 if __name__ == "__main__":
     fetch_and_store_festivals()
-    
