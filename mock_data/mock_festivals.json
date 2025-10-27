@@ -1,93 +1,57 @@
 [
-
   {
-    "contentid": "2025002",
-    "title": "🍁 신촌 단풍거리 버스킹 페스타",
-    "addr1": "서울특별시 서대문구 연세로 (신촌 명물거리)",
+    "contentid": "20251101_01",
+    "title": "🍽️ 2025 서울미식마켓 (Taste of Seoul)",
+    "addr1": "서울특별시 용산구 양녕로 445 노들섬 (노들스퀘어, 잔디마당)",
     "eventstartdate": "20251101",
     "eventenddate": "20251102",
-    "mapx": "126.936746",
-    "mapy": "37.556839",
-    "firstimage": "https://images.unsplash.com/photo-1541873676-a18131494184?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI0ODB8&ixlib=rb-4.0.3&q=80&w=1080"
+    "description": "'서울미식주간'의 메인 행사. '서울 미식 100선'에 선정된 유명 셰프들의 요리, 장(醬)과 발효 문화를 주제로 한 테마존, 로컬 식재료 마켓이 열리는 대규모 야외 미식 축제입니다.",
+    "firstimage": "https://i.imgur.com/wI0mmhr.jpeg",
+    "mapx": "126.9531",
+    "mapy": "37.5181"
   },
   {
-    "contentid": "2025003",
-    "title": "💖 홍대앞 아트마켓 '일상의 발견'",
-    "addr1": "서울특별시 마포구 와우산로 94 (홍익어린이공원)",
-    "eventstartdate": "20251108",
-    "eventenddate": "20251109",
-    "mapx": "126.923762",
-    "mapy": "37.551323",
-    "firstimage": "https://images.unsplash.com/photo-1549887552-cb107c34b02e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI1MjB8&ixlib=rb-4.0.3&q=80&w=1080"
+    "contentid": "20251101_02",
+    "title": "🎶 2025 서울뮤직페스티벌",
+    "addr1": "서울특별시 마포구 증산로 87 문화비축기지",
+    "eventstartdate": "20251101",
+    "eventenddate": "20251102",
+    "description": "가을밤을 뜨겁게 달굴 무료 대규모 음악 페스티벌! 로이킴, 카더가든, 이승윤, 국카스텐 등 인기 아티스트들의 라이브 무대. 문화비축기지의 이색적인 공간에서 음악과 함께 가을을 만끽하세요.",
+    "firstimage": "https://i.imgur.com/tFInQR3.jpeg",
+    "mapx": "126.8924",
+    "mapy": "37.5714"
   },
   {
-    "contentid": "2025004",
-    "title": "🎇 서울세계불꽃축제 (가을)",
-    "addr1": "서울특별시 영등포구 여의동로 330 (여의도한강공원)",
-    "eventstartdate": "20251026",
-    "eventenddate": "20251026",
-    "mapx": "126.936081",
-    "mapy": "37.525943",
-    "firstimage": "https://images.unsplash.com/photo-1517264109451-4aa0683c6f8c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI1NjJ8&ixlib=rb-4.0.3&q=80&w=1080"
+    "contentid": "20251101_03",
+    "title": "🍂 중구민 걷기대회 '남산동행'",
+    "addr1": "서울특별시 중구 장충단로 158 국립극장 (남산 북측순환로 일대)",
+    "eventstartdate": "20251101",
+    "eventenddate": "20251101",
+    "description": "가을 단풍이 아름다운 남산 북측순환로 4.5km를 함께 걷는 건강 축제. 가족, 친구와 함께 가을 남산의 정취를 느끼고 축하 공연 및 경품 추첨 이벤트도 즐겨보세요.",
+    "firstimage": "https://i.imgur.com/4prZLID.jpeg",
+    "mapx": "127.0055",
+    "mapy": "37.5518"
   },
   {
-    "contentid": "2025005",
-    "title": "억새축제 '하늘공원 가을산책'",
-    "addr1": "서울특별시 마포구 하늘공원로 95 (하늘공원)",
-    "eventstartdate": "20251019",
-    "eventenddate": "20251027",
-    "mapx": "126.878950",
-    "mapy": "37.571731",
-    "firstimage": "https://images.unsplash.com/photo-15420371048-81d39b334a1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI2MDN8&ixlib=rb-4.0.3&q=80&w=1080"
+    "contentid": "20251101_04",
+    "title": "👹 2025 문화도시도봉 도깨비축제",
+    "addr1": "서울특별시 도봉구청 인근 중랑천변",
+    "eventstartdate": "20251101",
+    "eventenddate": "20251101",
+    "description": "'도깨비'라는 이색적인 테마로 길놀이, 마당극, 도깨비 분장 선발대회 등 주민 참여형 행사가 열리는 축제입니다.",
+    "firstimage": "https://i.imgur.com/r3Oi2jD.jpeg",
+    "mapx": "127.0471",
+    "mapy": "37.6691"
   },
   {
-    "contentid": "2025006",
-    "title": "🎄 서울 크리스마스 마켓 (시청광장)",
-    "addr1": "서울특별시 중구 세종대로 110 (서울광장)",
-    "eventstartdate": "20251213",
-    "eventenddate": "20251225",
-    "mapx": "126.977969",
-    "mapy": "37.566317",
-    "firstimage": "https://images.unsplash.com/photo-1605995251666-e8f00f13d8b1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI2NDh8&ixlib=rb-4.0.3&q=80&w=1080"
-  },
-  {
-    "contentid": "2025007",
-    "title": "❄️ 청계천 빛초롱 축제",
-    "addr1": "서울특별시 종로구 서린동 (청계광장)",
-    "eventstartdate": "20251206",
-    "eventenddate": "20251231",
-    "mapx": "126.977868",
-    "mapy": "37.569038",
-    "firstimage": "https://images.unsplash.com/photo-1544412353-73d709081a34?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI3MTd8&ixlib=rb-4.0.3&q=80&w=1080"
-  },
-  {
-    "contentid": "2025008",
-    "title": "경복궁 별빛야행 (가을)",
-    "addr1": "서울특별시 종로구 사직로 161 (경복궁)",
-    "eventstartdate": "20251025",
-    "eventenddate": "20251107",
-    "mapx": "126.977016",
-    "mapy": "37.578611",
-    "firstimage": "https://images.unsplash.com/photo-1518332130386-3023b1b68f98?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI3NTd8&ixlib=rb-4.0.3&q=80&w=1080"
-  },
-  {
-    "contentid": "2025009",
-    "title": "☕️ 연남동 커피 페스티벌",
-    "addr1": "서울특별시 마포구 동교로 241 (연트럴파크 일대)",
-    "eventstartdate": "20251109",
-    "eventenddate": "20251110",
-    "mapx": "126.925414",
-    "mapy": "37.560152",
-    "firstimage": "https://images.unsplash.com/photo-1511920183303-a8139553c8ed?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI4MTB8&ixlib=rb-4.0.3&q=80&w=1080"
-  },
-  {
-    "contentid": "2025010",
-    "title": "📚 경의선 책거리 가을 축제",
-    "addr1": "서울특별시 마포구 와우산로35길 50-4",
-    "eventstartdate": "20251026",
-    "eventenddate": "20251027",
-    "mapx": "126.929766",
-    "mapy": "37.555716",
-    "firstimage": "https://images.unsplash.com/photo-1507842217343-583bb7270b66?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w9eDB8MHwxfGFsbHx8fHx8fHx8fDE3MzAwMDI4NTR8&ixlib=rb-4.0.3&q=80&w=1080"
+    "contentid": "20251004_01",
+    "title": "🎭 서울 가을축제 (서울어텀페스타)",
+    "addr1": "서울특별시 종로구, 마포구 등 서울 전역",
+    "eventstartdate": "20251004",
+    "eventenddate": "20251112",
+    "description": "11월 12일까지 서울 전역에서 계속되는 통합 축제 기간입니다. 대학로의 연극, 무용, 전통 공연 등 다양한 문화 예술 행사를 서울 곳곳에서 만나볼 수 있습니다.",
+    "firstimage": "https://i.imgur.com/bcvzGkg.jpeg",
+    "mapx": "127.0019",
+    "mapy": "37.5818"
   }
 ]

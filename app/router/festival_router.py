@@ -1,10 +1,10 @@
 # app/router/festival_router.py
-# app/router/festival_router.py
 
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 # from sqlalchemy.orm import Session # (DB 연결 제거)
 # from app.db.database import get_db # (DB 연결 제거)
+import datetime
 from datetime import date
 from app.models.festival_models import FestivalCreate, FestivalUpdate, FestivalOut
 # from app.services.festival_services import ( # (DB 서비스 제거)
@@ -78,9 +78,9 @@ def list_festivals_api(
     return items
 
 # ---------- Retrieve (수정) ----------
-@router.get("/{festival_id}", response_model=FestivalOut, summary="축제 상세 조회 [데모 모드]")
+@router.get("/{festival_id}", summary="축제 상세 조회 [데모 모드]")
 def get_festival_api(
-    festival_id: int, 
+    festival_id: str, 
     # db: Session = Depends(get_db) # (DB 연결 제거)
 ):
     print(f"--- ⚠️  [데모 모드] 목데이터에서 ID {festival_id}를 찾습니다. ---")
@@ -93,6 +93,15 @@ def get_festival_api(
     
     if not festival:
         raise HTTPException(status_code=404, detail="[데모] Festival not found")
+    
+    # 1. 'id' 필드 추가 (임시 값)
+    #    (contentid의 해시값이나 다른 고유한 int를 사용할 수 있지만, 데모용으론 999도 충분)
+    festival['id'] = 999  # 또는 hash(festival['contentid']) % 100000
+    
+    # 2. 'created_at', 'updated_at' 필드 추가 (임시 값)
+    now = datetime.datetime.now()
+    festival['created_at'] = festival.get('created_at', now)
+    festival['updated_at'] = festival.get('updated_at', now)
     return festival
 
 # ---------- Create (데모용 임시) ----------
@@ -113,7 +122,7 @@ def create_festival_api(
 # ---------- Update (데모용 임시) ----------
 @router.put("/{festival_id}", response_model=FestivalOut, summary="축제 수정 [데모 - 저장 안 됨]")
 def update_festival_api(
-    festival_id: int, 
+    festival_id: str, 
     payload: FestivalUpdate, 
     # db: Session = Depends(get_db) # (DB 연결 제거)
 ):
@@ -124,14 +133,18 @@ def update_festival_api(
 
     # 그냥 받은 데이터에 ID만 붙여서 반환
     demo_response = payload.model_dump(exclude_unset=True) # 변경된 부분만
-    demo_response["id"] = festival_id
+    demo_response["id"] = 999
     demo_response["title"] = demo_response.get("title", "[데모] 수정됨")
+    
+    now = datetime.datetime.now()
+    demo_response['created_at'] = now
+    demo_response['updated_at'] = now
     return demo_response
 
 # ---------- Delete (데모용 임시) ----------
 @router.delete("/{festival_id}", status_code=status.HTTP_204_NO_CONTENT, summary="축제 삭제 [데모 - 삭제 안 됨]")
 def delete_festival_api(
-    festival_id: int, 
+    festival_id: str, 
     # db: Session = Depends(get_db) # (DB 연결 제거)
 ):
     print(f"--- ⚠️  [데모 모드] 축제 {festival_id} 삭제 요청 (실제 삭제 안 됨) ---")
