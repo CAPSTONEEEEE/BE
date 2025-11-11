@@ -1,8 +1,10 @@
 from __future__ import annotations
 from typing import List, Dict, Optional
 from datetime import datetime
+import uuid, os
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, status, Depends, Response
+from fastapi import APIRouter, HTTPException, Query, status, Depends, Response, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -23,6 +25,14 @@ from app.models.market_models import (
 from pydantic import BaseModel, Field, conint, ConfigDict
 
 router = APIRouter(prefix="/markets", tags=["markets"])
+
+# ------------------------------------------------------
+# 업로드 경로 (app/static/uploads) 준비
+# ------------------------------------------------------
+APP_DIR = Path(__file__).resolve().parents[1]   # app/
+STATIC_DIR = APP_DIR / "static"
+UPLOAD_DIR = STATIC_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------
 # 공통 페이지네이션 응답 스키마
@@ -57,11 +67,86 @@ class PageWishlist(BaseModel):
 
 # ======================================================
 # ===============  상품 (DB 연동 CRUD)  ================
-#   ⚠️ 라우트 우선순위 때문에 고정/세부 경로를 먼저 선언
+#   POST /products : JSON *또는* multipart 모두 허용
 # ======================================================
 
 @router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 등록")
-def create_product_api(payload: ProductIn, db: Session = Depends(get_db)):
+async def create_product_api(request: Request, db: Session = Depends(get_db)):
+    """
+    - Content-Type: application/json  => 기존 그대로 ProductIn(JSON) 처리
+    - Content-Type: multipart/form-data => 폼 필드 + 파일(image) 처리 후 ProductIn 생성
+    """
+    ct = request.headers.get("content-type", "")
+    # ----- multipart/form-data -----
+    if ct.startswith("multipart/form-data"):
+        form = await request.form()
+        # 필수/선택 필드 파싱
+        def _get(name: str, default=None):
+            v = form.get(name, default)
+            return None if (v is None or (isinstance(v, str) and v.strip() == "")) else v
+
+        name = _get("name")
+        price = _get("price")
+        market_id = _get("market_id")
+        # 최소 필수값 체크
+        if name is None or price is None or market_id is None:
+            raise HTTPException(status_code=400, detail="name, price, market_id는 필수입니다.")
+
+        # 타입 캐스팅
+        try:
+            price = float(price)
+            market_id = int(market_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="price는 숫자, market_id는 정수여야 합니다.")
+
+        summary = _get("summary")
+        description = _get("description")
+        stock = _get("stock", 0)
+        unit = _get("unit")
+        category_id = _get("category_id")
+        region_id = _get("region_id")
+
+        try:
+            stock = int(stock) if stock is not None else 0
+            category_id = int(category_id) if category_id is not None else None
+            region_id = int(region_id) if region_id is not None else None
+        except ValueError:
+            raise HTTPException(status_code=400, detail="stock/category_id/region_id는 정수여야 합니다.")
+
+        # 파일(단일) 저장 -> /static/uploads/<uuid>.<ext>
+        image_urls: list[str] = []
+        file: UploadFile | None = form.get("image")
+        if file and getattr(file, "filename", None):
+            _, ext = os.path.splitext(file.filename)
+            filename = f"{uuid.uuid4().hex}{ext.lower() or '.jpg'}"
+            save_path = UPLOAD_DIR / filename
+            content = await file.read()
+            with open(save_path, "wb") as f:
+                f.write(content)
+            # 정적 URL
+            image_urls.append(f"/static/uploads/{filename}")
+
+        payload = ProductIn(
+            name=name,
+            summary=summary,
+            description=description,
+            price=price,
+            stock=stock,
+            unit=unit,
+            image_urls=image_urls or None,  # 없으면 None
+            # 상태는 기본 ACTIVE (스키마 기본값 사용)
+            market_id=market_id,
+            category_id=category_id,
+            region_id=region_id,
+        )
+        return create_product(db, payload)
+
+    # ----- application/json (기존 동작 유지) -----
+    body = await request.json()
+    try:
+        payload = ProductIn(**body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="잘못된 JSON 본문입니다.")
     return create_product(db, payload)
 
 @router.get("/products", response_model=ProductListResponse, summary="상품 목록")
@@ -116,7 +201,6 @@ def delete_product_api(product_id: int, db: Session = Depends(get_db)):
 
 # ======================================================
 # ===============  장바구니 (DB 연동)  =================
-#   ⚠️ 동적 경로("/{market_id}")보다 위에 둬야 함
 # ======================================================
 
 @router.get("/cart", response_model=PageCart, summary="장바구니 목록")
@@ -131,7 +215,6 @@ def list_cart_api(
 
 @router.post("/cart", response_model=CartItemOut, status_code=status.HTTP_201_CREATED, summary="장바구니 추가/누적")
 def add_cart_api(payload: CartItemCreate, db: Session = Depends(get_db)):
-    # 서비스에서 ValueError로 올려주는 에러를 404/400으로 변환
     try:
         return add_to_cart(db, payload)
     except ValueError as e:
@@ -161,7 +244,6 @@ def clear_cart_api(user_id: int = Query(..., description="사용자 ID"), db: Se
 
 # ======================================================
 # ===============  찜하기 (DB 연동)  ===================
-#   ⚠️ 동적 경로("/{market_id}")보다 위에 둬야 함
 # ======================================================
 
 @router.get("/wishlist", response_model=PageWishlist, summary="찜 목록")
@@ -197,7 +279,6 @@ def remove_wishlist_api(
 
 # ======================================================
 # ===============  마켓 (DB 연동 CRUD)  ================
-#   ⚠️ 동적 경로는 항상 마지막 쪽에 배치
 # ======================================================
 
 @router.get("", response_model=MarketListResponse, summary="마켓 목록")
@@ -239,10 +320,7 @@ def update_market_api(market_id: int, payload: MarketUpdate, db: Session = Depen
         raise HTTPException(status_code=404, detail="Market not found")
     return obj
 
-# ======================================================
-# ======  판매자/문의/후기 (기존 Mock 그대로 유지)  ======
-# ======================================================
-
+# ====== 판매자/문의/후기 (기존 Mock 유지) ======
 class SellerCreate(BaseModel):
     seller_name: str = Field(..., description="판매자 이름")
     phone: Optional[str] = Field(None, description="연락처")
