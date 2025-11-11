@@ -21,7 +21,6 @@ def get_api_params(page_no: int, content_type_id: str):
         "pageNo": page_no,
         "MobileOS": "ETC",
         "MobileApp": "sosoheng",
-        "listYN": "Y",
         "arrange": "A", # 제목순 정렬
         "contentTypeId": content_type_id,
         "_type": "json"  # JSON 형식으로 응답받기
