@@ -21,7 +21,7 @@ import app.models.recommend_models   # noqa
 from app.router import recommend_router
 from app.router import market_router
 from app.router import festival_router
-from app.router import users_router
+#from app.router import users_router
 
 load_dotenv()
 
@@ -60,7 +60,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(recommend_router.router, prefix="/api/v1")
 app.include_router(market_router.router, prefix="/api/v1")
 app.include_router(festival_router.router, prefix="/api/v1")
-app.include_router(users_router.router, prefix="/api/v1")
+#app.include_router(users_router.router, prefix="/api/v1")
 
 @app.get("/")
 def root():
