@@ -3,14 +3,15 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
-# ★ 추가: 정적 파일 제공
+# ★ 정적 파일 제공
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+import os
 
 # CORS
 from fastapi.middleware.cors import CORSMiddleware
 
-# models 관련 수정
+# models 관련 (기존 그대로)
 from app.db.database import engine
 from app.db.database import Base
 import app.models.market_models      # noqa
@@ -29,7 +30,6 @@ app = FastAPI(
     description="소도시 여행 추천 및 지역 콘텐츠 제공을 위한 RESTful API",
     version="1.0.0"
 )
-origins = ["*"] # 모든 출처를 허용 (개발용)
 
 # ===== CORS (그대로 유지) =====
 origins = ["*"]  # 내부망/디바이스 접근용 임시 전체 허용
@@ -42,14 +42,18 @@ app.add_middleware(
 )
 # ============================
 
-# ======= 정적 mock 데이터 마운트 (핵심) =======
-# 이 파일(app/main.py)의 상위(= BE) 폴더에 있는 mock_data 폴더를 가리킵니다.
+# ======= 정적 mock 데이터 마운트 (기존 유지) =======
 BASE_DIR = Path(__file__).resolve().parent.parent  # BE/app -> parent == BE
 MOCK_DIR = BASE_DIR / "mock_data"
-
-# /mock_data 경로로 정적 파일을 서비스하도록 마운트
-# 예: http://<LAN IP>:8000/mock_data/mock_markets.json
 app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
+
+# ======= 업로드 정적 파일 마운트 (★ 최소 추가) =======
+APP_DIR = Path(__file__).resolve().parent  # app/
+STATIC_DIR = APP_DIR / "static"
+UPLOAD_DIR = STATIC_DIR / "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+# 예: http://<LAN IP>:8000/static/uploads/xxxxx.jpg
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # =============================================
 
 # 기능 라우터
