@@ -40,6 +40,41 @@ class RandomRecommendResponse(BaseModel):
 class ChatRecommendResponse(BaseModel):
     response: str = Field(..., description="챗봇의 텍스트 응답.")
     recommendations: List[TourInfoOut] = Field([], description="추천된 DB 기반여행지 목록.")
+    recommendations: List[RecommendationOut] = Field([], description="추천된 여행지 목록.")
+    
+# ======================================================
+# ▼▼▼ 3. Festival 스키마  ▼▼▼
+# ======================================================
+class FestivalResponse(BaseModel):
+    contentid: str
+    title: str
+    location: Optional[str] = None
+    event_start_date: str
+    event_end_date: str
+    mapx: float
+    mapy: float
+    
+    image_url: Optional[str] = None 
+    modified_time: Optional[str] = None
+    
+class FestivalRead(FestivalResponse):
+    # 사용자에게 응답할 때 사용
+    id: int
+    # Haversine 계산으로 추가되는 거리 필드 (km 단위)
+    distance: Optional[float] = Field(
+        None, description="사용자 위치에서 축제 위치까지의 거리 (km)."
+    )
+    class Config:
+        from_attributes = True # Pydantic v2
+        # orm_mode = True # Pydantic v1
+
+class FestivalListResponse(BaseModel):
+    """축제 목록 API의 전체 응답 구조"""
+    total: int = Field(..., description="전체 축제 개수 (필터링 적용 후)")
+    page: int
+    size: int
+    items: List[FestivalRead]
+
 
 # ======================================================
 # ▼▼▼ 4. Market & User 스키마 (새로 추가) ▼▼▼
