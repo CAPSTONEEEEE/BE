@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from datetime import datetime
 
+from app.models.recommend_models import TourInfoOut
+
 ## 1. 챗봇 스키마 (팀원 작업 보존)
 # 챗봇에 전송하는 사용자의 메시지 모델입니다.
 class ChatbotRequest(BaseModel):
@@ -37,7 +39,7 @@ class RandomRecommendResponse(BaseModel):
 # 챗봇이 특정 여행지를 추천할 때 사용될 수 있습니다.
 class ChatRecommendResponse(BaseModel):
     response: str = Field(..., description="챗봇의 텍스트 응답.")
-    recommendations: List[RecommendationOut] = Field([], description="추천된 여행지 목록.")
+    recommendations: List[TourInfoOut] = Field([], description="추천된 DB 기반여행지 목록.")
 
 # ======================================================
 # ▼▼▼ 4. Market & User 스키마 (새로 추가) ▼▼▼

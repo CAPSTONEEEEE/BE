@@ -5,15 +5,14 @@ from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
 
 from app.schemas import (
-    ChatbotRequest,         
-    RecommendationOut,
+    ChatbotRequest,       
     RandomRecommendRequest,
     RandomRecommendResponse,
     ChatRecommendResponse,
 )
 
 from app.services.recommend_service import (
-    get_chatbot_response,
+    get_chatbot_search_keywords_and_recommendations, # RAG 통합 함수
     get_random_recommendations_from_db
 )
 
@@ -24,14 +23,17 @@ router = APIRouter(tags=["추천"])
 
 # 3. 라우터 엔드포인트 정의
 # AI 챗봇 엔드포인트
-@router.post("/chatbot", summary="AI 챗봇과 대화", response_model=ChatRecommendResponse)
+@router.post("/chatbot", summary="RAG 기반 AI 챗봇 추천", response_model=ChatRecommendResponse)
 async def chatbot_endpoint(request: ChatbotRequest):
     try:
-        ai_response_text = await get_chatbot_response(request.message)
+        # 새로운 RAG 서비스 함수 호출 및 결과 수신
+        result = await get_chatbot_search_keywords_and_recommendations(request.message)
         
+        # result는 dict 형태로 {"ai_response_text": ..., "db_recommendations": ...}를 포함함
+        # 수신된 결과를 ChatRecommendResponse 스키마에 맞춰 반환
         return ChatRecommendResponse(
-            response=ai_response_text,
-            recommendations=[]
+            response=result["ai_response_text"],
+            recommendations=result["db_recommendations"] # DB 검색 결과(TourInfoOut 리스트)
         )
     except HTTPException as e:
         raise e
