@@ -67,9 +67,42 @@ class TourAPIClient:
             'arrange': 'C', #수정일순 저장
         }
         return await self._send_request(endpoint, params)
-    # 나중에 여행지 정보가 필요하면 아래와 같이 메소드를 추가하면 됩니다.
-    # def get_travel_spots(self, ...):
-    #     ...
+    
+    # app/clients/tour_api_client.py 파일 내
+
+    # tour_api_client.py 파일 내 get_recommends 함수 수정
+
+    async def get_recommends(self, area_code: str = None, content_type_id: str = None, page_no: int = 1, num_of_rows: int = 100) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        TourAPI에서 지역 기반 관광 정보(areaBasedList2)를 비동기로 가져옵니다.
+        """
+        
+        # 지역 기반 관광정보 조회 API 엔드포인트
+        endpoint = "areaBasedList2" 
+        
+        # API 요청에 필요한 파라미터 정의
+        params = {
+            'pageNo': page_no,
+            'numOfRows': num_of_rows,
+            'arrange': 'D',       # D=생성일순으로 정렬
+            'contentTypeId': content_type_id, # 👈 이 매개변수를 사용하도록 추가/수정
+            'areaCode': area_code, 
+        }
+        
+        # 🌟 핵심: None인 파라미터는 요청에서 제거하여 검색 조건을 완화합니다.
+        # 이렇게 해야 areaCode와 contentTypeId에 None을 넘겨도 API가 전국/전체 타입을 검색합니다.
+        if params.get('areaCode') is None:
+            del params['areaCode']
+        
+        if params.get('contentTypeId') is None:
+            del params['contentTypeId']
+            
+        # _send_request 함수가 (raw_items, api_total_count) 튜플을 반환하도록 처리
+        return await self._send_request(endpoint, params)
+        
+    # TourAPIClient 클래스의 정의 부분이라고 가정
+
+
 
 # 다른 파일에서 쉽게 가져다 쓸 수 있도록 인스턴스를 만들어 둡니다.
 tour_api_client = TourAPIClient()
