@@ -1,43 +1,36 @@
 # BE/app/main.py
 import os
-
+from pathlib import Path
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(project_root, ".env"))
 
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-
-from fastapi.middleware.cors import CORSMiddleware
-
-
-from app.router import recommend_router
-from app.router import market_router
-from app.router import festival_router
+from app.core.config import get_settings
+settings = get_settings()
 
 # --- DB 및 모델 임포트 (Alembic/Uvicorn이 인식하도록) ---
 from app.db.database import Base, engine, test_db_connection
-# 아래 noqa 임포트는 app/models/__init__.py에서 처리하므로 주석 처리
-# import app.models.market_models      # noqa
-# import app.models.festival_models    # noqa
-# import app.models.recommend_models   # noqa
-import app.models # __init__.py를 임포트
-
-# --- API 라우터 임포트 ---
-from app.api import api_router # ◀◀◀ main.py가 직접 임포트하던 것을 api.py로 교체
-
-
+import app.models
 
 app = FastAPI(
-    title="소소행 API",
+    title=settings.PROJECT_NAME,
     description="소도시 여행 추천 및 지역 콘텐츠 제공을 위한 RESTful API",
     version="1.0.0"
 )
 
-# ===== CORS (그대로 유지) =====
-origins = ["*"]
+# ===== CORS  =====
+#CORS 미들웨어 설정 (보안 강화: settings.CORS_ORIGINS 사용)
+if settings.CORS_ORIGINS:
+    # 콤마로 구분된 문자열을 리스트로 변환
+    origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(',')]
+else:
+    # 설정되지 않은 경우 (개발 환경에서만 사용 권장)
+    origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -45,7 +38,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+print(f"CORS origins configured: {origins}")
 # ============================
+
+# --- API 라우터 임포트 ---
+from app.api import api_router 
+app.include_router(api_router, prefix=settings.API_V1_STR) 
 
 # ======= 정적 파일 마운트 (mock_data 및 uploads) =======
 BASE_DIR = Path(__file__).resolve().parent.parent  # BE/app -> parent == BE
@@ -63,9 +61,6 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # 기능 라우터
-app.include_router(recommend_router.router, prefix="/api/v1")
-app.include_router(market_router.router, prefix="/api/v1")
-app.include_router(festival_router.router, prefix="/api/v1")
 app.include_router(api_router, prefix="/api/v1") 
 
 @app.on_event("startup")

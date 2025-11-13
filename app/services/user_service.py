@@ -1,51 +1,57 @@
-# app/services/user_service.py
+import os
+from typing import Optional, Any
 
 from sqlalchemy.orm import Session
-from app.models.users_models import MarketUser # User -> MarketUser
-from app.schemas import MarketUserCreate, MarketUserLogin # schemas_.user_schemas -> schemas
+from fastapi import HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
+
+from app.db.database import get_db
+from app.models.base_user_models import User
+from app.schemas import UserCreate, UserLogin, UserRead
 from app.security import get_password_hash, verify_password 
+from app.core.config import get_settings
 
-def get_user_by_email(db: Session, email: str) -> MarketUser | None:
-    """이메일을 사용해 데이터베이스에서 사용자를 조회합니다."""
-    return db.query(MarketUser).filter(MarketUser.email == email).first()
+settings = get_settings()
 
-def create_user(db: Session, user_create: MarketUserCreate):
-    plain_password = user_create.password
-    # 여기서도 비밀번호를 72바이트로 잘라줍니다.
-    truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', 'ignore')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# ======================================================
+# 사용자 CRUD 로직
+# ======================================================
+
+def get_user_by_email(db: Session, email: str):
+    """이메일로 사용자를 조회합니다."""
+    return db.query(User).filter(User.email == email).first()
+
+def create_user(db: Session, user_create: UserCreate):
+    """새 사용자를 생성하고 비밀번호를 해시하여 DB에 저장합니다."""
+    # 비밀번호 해시
+    hashed_password = get_password_hash(user_create.password)
     
-    hashed_password = get_password_hash(truncated_password)
-    
-    # 2. 암호화된 비밀번호로 DB 모델 객체를 만듭니다.
-    # MarketUser 모델에 맞게 필드 전송
-    db_user = MarketUser(
+    # User 모델 인스턴스 생성
+    db_user = User(
         email=user_create.email,
-        username=user_create.username,
+        username=user_create.username, 
         hashed_password=hashed_password,
-        is_seller=user_create.is_seller,
-        business_number=user_create.business_number
+        is_active=True
     )
     
-    # 3. DB에 추가하고 변경사항을 저장합니다.
+    # DB에 저장
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-def authenticate_user(db: Session, user_login: MarketUserLogin):
-    user = get_user_by_email(db, email=user_login.email)
+# ======================================================
+# 인증 로직
+# ======================================================
+
+def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+    """사용자 인증: 이메일로 조회 후 비밀번호 검증"""
+    user = get_user_by_email(db, email=email)
     if not user:
         return None
-        
-    # 비밀번호를 72바이트로 잘라서 전달
-    plain_password = user_login.password
-    truncated_password_bytes = plain_password.encode('utf-8')[:72]
-    
-    # ▼▼▼ 디버깅 코드 수정 ▼▼▼
-    # print(f"검증할 비밀번호(bytes): {truncated_password_bytes}")
-    # print(f"길이(bytes): {len(truncated_password_bytes)}")
-    # ▲▲▲ 디버깅 코드 수정 ▲▲▲
-
-    if not verify_password(truncated_password_bytes, user.hashed_password):
+    # 비밀번호 검증 (security.py의 함수 사용)
+    if not verify_password(password, user.hashed_password):
         return None
     return user
