@@ -1,4 +1,6 @@
 # BE/app/main.py
+import os
+
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
@@ -7,7 +9,7 @@ load_dotenv(os.path.join(project_root, ".env"))
 
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-import os
+
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -16,7 +18,7 @@ from app.router import market_router
 from app.router import festival_router
 
 # --- DB 및 모델 임포트 (Alembic/Uvicorn이 인식하도록) ---
-from app.db.database import Base, engine
+from app.db.database import Base, engine, test_db_connection
 # 아래 noqa 임포트는 app/models/__init__.py에서 처리하므로 주석 처리
 # import app.models.market_models      # noqa
 # import app.models.festival_models    # noqa
