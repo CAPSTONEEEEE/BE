@@ -38,7 +38,7 @@ async def list_festivals_api(
     
     # 기본 거리 필터링을 10km로 설정하여 기본 화면으로 제공합니다.
     distance_km: Optional[float] = Query(
-        30.0, 
+        10.0, 
         ge=0.1, 
         description="거리 필터 (km 단위). None으로 설정 시 필터링 없음 (전체 목록)."
     ),
