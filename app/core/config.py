@@ -1,8 +1,17 @@
 #중요 API키들 모아두는 파일
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, HttpUrl
+from functools import lru_cache
+
+from app.db.database import DATABASE_URL_STR
 
 class Settings(BaseSettings):
+    
+    database_url: str = Field(
+        default=DATABASE_URL_STR,
+        alias="DATABASE_URL",
+    )
     # 기존 변수들
     TOUR_API_KEY: str
     OPENAI_API_KEY: str
@@ -15,9 +24,19 @@ class Settings(BaseSettings):
     environment: str
     database_url: str
     cors_origins: str
-    openai_model: str
+    """openai_model: str
     
-    model_config = SettingsConfigDict(env_file=".env", extra='ignore') # 👈 extra='ignore' 추가
+    model_config = SettingsConfigDict(env_file=".env", extra='ignore') # 👈 extra='ignore' 추가"""
+    # 임시 사용
+    openai_model: str = Field(
+        default="gpt-3.5-turbo",  # <---기본값을 설정하여 누락 오류를 피함.
+        alias="OPENAI_MODEL",
+    )# Pydantic v2 설정
+    model_config = SettingsConfigDict(
+        env_file='.env', 
+        extra='ignore', 
+        populate_by_name=True,
+    )
 
 @lru_cache
 def get_settings():

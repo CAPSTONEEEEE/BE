@@ -1,7 +1,10 @@
 # backend/app/main.py
-
+import os
 from fastapi import FastAPI
 from dotenv import load_dotenv
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(project_root, ".env"))
 
 # ★ 추가: 정적 파일 제공
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +14,7 @@ from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 
 # models 관련 수정
-from app.db.database import engine
+from app.db.database import engine, test_db_connection
 from app.db.database import Base
 import app.models.market_models      # noqa
 import app.models.festival_models    # noqa
@@ -20,9 +23,7 @@ import app.models.recommend_models   # noqa
 from app.router import recommend_router
 from app.router import market_router
 from app.router import festival_router
-from app.router import users_router
 
-load_dotenv()
 
 app = FastAPI(
     title="소소행 API",
@@ -56,7 +57,13 @@ app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
 app.include_router(recommend_router.router, prefix="/api/v1")
 app.include_router(market_router.router, prefix="/api/v1")
 app.include_router(festival_router.router, prefix="/api/v1")
-app.include_router(users_router.router, prefix="/api/v1")
+
+@app.on_event("startup")
+def startup_event():
+    """
+    서버 시작 시 DB 연결을 테스트하여 환경 변수 오류를 즉시 감지합니다.
+    """
+    test_db_connection()
 
 @app.get("/")
 def root():

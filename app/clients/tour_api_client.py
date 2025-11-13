@@ -1,5 +1,6 @@
 import requests
-from typing import List, Dict, Any
+import httpx
+from typing import List, Dict, Any, Tuple
 from app.core.config import get_settings
 
 # 설정 파일에서 TourAPI 관련 설정을 가져옵니다.
@@ -9,14 +10,14 @@ class TourAPIClient:
     """
     한국관광공사 TourAPI와의 통신을 담당하는 클라이언트 클래스
     """
-    BASE_URL = "http://apis.data.go.kr/B551011/KorService"
+    BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
 
     def __init__(self):
         self.service_key = settings.TOUR_API_KEY # .env 파일에 저장된 키를 가져옵니다.
         if not self.service_key:
             raise ValueError("TourAPI 서비스 키가 설정되지 않았습니다.")
 
-    def _send_request(self, endpoint: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _send_request(self, endpoint: str, params: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], int]:
         """
         API 요청을 보내고 결과를 파싱하는 내부 메소드
         """
@@ -32,13 +33,20 @@ class TourAPIClient:
         params.update(common_params)
 
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()  # 200 OK가 아니면 오류를 발생시킵니다.
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(url, params=params)
             
             data = response.json()
-            items = data.get('response', {}).get('body', {}).get('items', {}).get('item', [])
-            return items if isinstance(items, list) else [items]
-
+            response_body = data.get('response', {}).get('body', {})
+            items = response_body.get('items', {}).get('item', [])
+            total_count = response_body.get('totalCount', 0) # totalCount를 가져옵니다.
+            
+            # items가 딕셔너리(단일 항목)인 경우 리스트로 변환합니다.
+            processed_items = items if isinstance(items, list) else [items]
+            
+            # 성공적으로 두 개의 값을 튜플로 반환합니다.
+            return processed_items, total_count
+        
         except requests.exceptions.RequestException as e:
             print(f"API 요청 중 오류 발생: {e}")
             return []
@@ -46,18 +54,19 @@ class TourAPIClient:
             print(f"데이터 처리 중 오류 발생: {e}")
             return []
 
-    def get_festivals(self, start_date: str, num_of_rows: int = 100, page_no: int = 1) -> List[Dict[str, Any]]:
+    async def get_festivals(self, start_date: str, end_date: str, num_of_rows: int = 100, page_no: int = 1) -> List[Dict[str, Any]]:
         """
         지정된 시작일 이후의 축제 정보를 가져옵니다.
         """
-        endpoint = "searchFestival"
+        endpoint = "searchFestival2"
         params = {
             'eventStartDate': start_date,
+            'eventEndDate': end_date,
             'numOfRows': num_of_rows,
-            'pageNo': page_no
+            'pageNo': page_no,
+            'arrange': 'C', #수정일순 저장
         }
-        return self._send_request(endpoint, params)
-    
+        return await self._send_request(endpoint, params)
     # 나중에 여행지 정보가 필요하면 아래와 같이 메소드를 추가하면 됩니다.
     # def get_travel_spots(self, ...):
     #     ...
