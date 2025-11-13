@@ -1,27 +1,22 @@
-# backend/app/main.py
+# BE/app/main.py
 
 from fastapi import FastAPI
 from dotenv import load_dotenv
-
-# ★ 정적 파일 제공
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import os
-
-# CORS
 from fastapi.middleware.cors import CORSMiddleware
 
-# models 관련 (기존 그대로)
-from app.db.database import engine
-from app.db.database import Base
-import app.models.market_models      # noqa
-import app.models.festival_models    # noqa
-import app.models.recommend_models   # noqa
+# --- DB 및 모델 임포트 (Alembic/Uvicorn이 인식하도록) ---
+from app.db.database import Base, engine
+# 아래 noqa 임포트는 app/models/__init__.py에서 처리하므로 주석 처리
+# import app.models.market_models      # noqa
+# import app.models.festival_models    # noqa
+# import app.models.recommend_models   # noqa
+import app.models # __init__.py를 임포트
 
-from app.router import recommend_router
-from app.router import market_router
-from app.router import festival_router
-#from app.router import users_router
+# --- API 라우터 임포트 ---
+from app.api import api_router # ◀◀◀ main.py가 직접 임포트하던 것을 api.py로 교체
 
 load_dotenv()
 
@@ -32,7 +27,7 @@ app = FastAPI(
 )
 
 # ===== CORS (그대로 유지) =====
-origins = ["*"]  # 내부망/디바이스 접근용 임시 전체 허용
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -42,26 +37,28 @@ app.add_middleware(
 )
 # ============================
 
-# ======= 정적 mock 데이터 마운트 (기존 유지) =======
+# ======= 정적 파일 마운트 (mock_data 및 uploads) =======
 BASE_DIR = Path(__file__).resolve().parent.parent  # BE/app -> parent == BE
 MOCK_DIR = BASE_DIR / "mock_data"
-app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
-
-# ======= 업로드 정적 파일 마운트 (★ 최소 추가) =======
-APP_DIR = Path(__file__).resolve().parent  # app/
-STATIC_DIR = APP_DIR / "static"
+STATIC_DIR = BASE_DIR / "app" / "static"
 UPLOAD_DIR = STATIC_DIR / "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-# 예: http://<LAN IP>:8000/static/uploads/xxxxx.jpg
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# /mock_data 경로는 /api/v1과 별개로 루트에서 접근
+app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
+# /static 경로는 /api/v1과 별개로 루트에서 접근
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # =============================================
 
-# 기능 라우터
-app.include_router(recommend_router.router, prefix="/api/v1")
-app.include_router(market_router.router, prefix="/api/v1")
-app.include_router(festival_router.router, prefix="/api/v1")
-#app.include_router(users_router.router, prefix="/api/v1")
+# ======= 메인 API 라우터 등록 =======
+# api.py에 정의된 모든 라우터 (market, festival, common 등)를
+# /api/v1 접두사와 함께 등록합니다.
+app.include_router(api_router, prefix="/api/v1") 
+# ===================================
 
 @app.get("/")
 def root():
-    return {"message": "Sosohaeng Backend Mock API is running"}
+    # 이 엔드포인트는 common_router.py의 "/"와 겹치므로
+    # common_router.py의 "/"가 /api/v1/ 로 등록됩니다.
+    return {"message": "Sosohaeng Backend API Root"}
