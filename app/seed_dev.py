@@ -1,4 +1,4 @@
-# app/seed_dev.py
+# BE/app/seed_dev.py
 from sqlalchemy.orm import Session
 from datetime import date
 import json

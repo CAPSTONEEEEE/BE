@@ -1,4 +1,4 @@
-# app/schemas.py
+# BE/app/schemas.py
 
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
