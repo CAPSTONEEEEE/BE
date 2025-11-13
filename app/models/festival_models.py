@@ -1,13 +1,12 @@
 from __future__ import annotations
-from datetime import date, datetime
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field, HttpUrl, ConfigDict
-from sqlalchemy import Integer, String, Text, Date, DateTime, ForeignKey, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Float, Text, DateTime, Index
+from sqlalchemy.ext.declarative import declarative_base
 
-from app.db.database import Base
+from app.db.database import Base # RDS 연결을 위한 Base 임포트
 
 
 # -------------------------
@@ -16,69 +15,76 @@ from app.db.database import Base
 class Festival(Base):
     __tablename__ = "festivals"
     
-    # 1. id를 Primary Key로 사용하고, contentid는 고유값(unique)으로 설정
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True)
     
-    # 2. contentid도 mapped_column 스타일로 통일하고, primary_key=True는 제거
-    contentid: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    # API의 contentid와 매핑되며 고유해야 함
+    contentid = Column(String(30), unique=True, nullable=False) 
     
-    title: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
-    location: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    region_id: Mapped[Optional[int]] = mapped_column(ForeignKey("regions.id"), nullable=True, index=True)
-    event_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    event_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    title = Column(String(255), nullable=False)
+    
+    # API의 addr1을 저장하기 위한 필드 (오류 해결)
+    location = Column(String(255)) 
+    
+    # TourAPI는 날짜를 YYYYMMDD 문자열로 제공하므로 String(8)로 처리
+    event_start_date = Column(String(8)) 
+    event_end_date = Column(String(8))
+    
+    mapx = Column(Float) # 경도
+    mapy = Column(Float) # 위도
+    
+    image_url = Column(Text) # URL을 저장
+    
+    # TourAPI에는 없으나 DB 관리를 위해 추가 (스크립트에서 값을 넣지 않아도 DB가 처리)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    modified_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    region = relationship("Region")
-
+# 🟢 위치 기반 검색을 위한 인덱스 유지
 Index("idx_festivals_title_date", Festival.title, Festival.event_start_date)
 
 
 # -------------------------
-# Pydantic Schemas
+# Pydantic Schemas (mapx, mapy 반영)
 # -------------------------
 class FestivalBase(BaseModel):
     title: str
     location: Optional[str] = None
-    region_id: Optional[int] = None
-    start_date: Optional[date] = Field(None, alias="event_start_date")
-    end_date: Optional[date] = Field(None, alias="event_end_date")
+    # region_id: Optional[int] = None # ⚠️ Region 필드 제거
+    event_start_date: str # DB와 동일하게 String으로 변경
+    event_end_date: str # DB와 동일하게 String으로 변경
     description: Optional[str] = None
     image_url: Optional[HttpUrl] = None
+    
+    # 🟢 위치 정보 추가
+    mapx: float
+    mapy: float
 
-    # ✅ Pydantic v2 설정
     model_config = ConfigDict(
         from_attributes=True,
-        validate_by_name=True,  # (v1: allow_population_by_field_name)
+        validate_by_name=True,
     )
 
 
 class FestivalCreate(FestivalBase):
-    title: str
-    start_date: date
-    end_date: date
-
+    contentid: str # API 연동시 필요
 
 class FestivalUpdate(BaseModel):
     title: Optional[str] = None
     location: Optional[str] = None
-    region_id: Optional[int] = None
-    start_date: Optional[date] = Field(None, alias="event_start_date")
-    end_date: Optional[date] = Field(None, alias="event_end_date")
+    # region_id: Optional[int] = None # ⚠️ Region 필드 제거
+    event_start_date: Optional[str] = None
+    event_end_date: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[HttpUrl] = None
+    mapx: Optional[float] = None
+    mapy: Optional[float] = None
 
-    # ✅ Pydantic v2 설정 (별도 from_attributes 불필요)
     model_config = ConfigDict(validate_by_name=True)
 
 
 class FestivalOut(FestivalBase):
     id: int
+    contentid: str # TourAPI ID 추가
     created_at: datetime
     updated_at: Optional[datetime]
 
-    # ✅ Pydantic v2 설정
     model_config = ConfigDict(from_attributes=True, validate_by_name=True)

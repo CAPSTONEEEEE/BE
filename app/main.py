@@ -1,11 +1,19 @@
 # BE/app/main.py
-
 from fastapi import FastAPI
 from dotenv import load_dotenv
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(project_root, ".env"))
+
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import os
 from fastapi.middleware.cors import CORSMiddleware
+
+
+from app.router import recommend_router
+from app.router import market_router
+from app.router import festival_router
 
 # --- DB 및 모델 임포트 (Alembic/Uvicorn이 인식하도록) ---
 from app.db.database import Base, engine
@@ -18,7 +26,7 @@ import app.models # __init__.py를 임포트
 # --- API 라우터 임포트 ---
 from app.api import api_router # ◀◀◀ main.py가 직접 임포트하던 것을 api.py로 교체
 
-load_dotenv()
+
 
 app = FastAPI(
     title="소소행 API",
@@ -51,11 +59,19 @@ app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # =============================================
 
-# ======= 메인 API 라우터 등록 =======
-# api.py에 정의된 모든 라우터 (market, festival, common 등)를
-# /api/v1 접두사와 함께 등록합니다.
+
+# 기능 라우터
+app.include_router(recommend_router.router, prefix="/api/v1")
+app.include_router(market_router.router, prefix="/api/v1")
+app.include_router(festival_router.router, prefix="/api/v1")
 app.include_router(api_router, prefix="/api/v1") 
-# ===================================
+
+@app.on_event("startup")
+def startup_event():
+    """
+    서버 시작 시 DB 연결을 테스트하여 환경 변수 오류를 즉시 감지합니다.
+    """
+    test_db_connection()
 
 @app.get("/")
 def root():
