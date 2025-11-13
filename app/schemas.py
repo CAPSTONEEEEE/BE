@@ -5,6 +5,9 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.models.recommend_models import TourInfoOut
+# ======================================================
+# ▼▼▼ 1. Recommand 스키마  ▼▼▼
+# ======================================================
 
 ## 1. 챗봇 스키마 (팀원 작업 보존)
 # 챗봇에 전송하는 사용자의 메시지 모델입니다.
@@ -43,7 +46,7 @@ class ChatRecommendResponse(BaseModel):
     recommendations: List[RecommendationOut] = Field([], description="추천된 여행지 목록.")
     
 # ======================================================
-# ▼▼▼ 3. Festival 스키마  ▼▼▼
+# ▼▼▼ 2. Festival 스키마  ▼▼▼
 # ======================================================
 class FestivalResponse(BaseModel):
     contentid: str
@@ -77,7 +80,7 @@ class FestivalListResponse(BaseModel):
 
 
 # ======================================================
-# ▼▼▼ 4. Market & User 스키마 (새로 추가) ▼▼▼
+# ▼▼▼ 3. Market & MarketUser 스키마 (새로 추가) ▼▼▼
 # ======================================================
 
 # --- User (market_users) ---
@@ -190,3 +193,41 @@ class MarketWishlistOut(BaseModel):
     
     class Config:
         from_attributes = True
+        
+# ======================================================
+# ▼▼▼ 4. Authentication & General User Schemas ▼▼▼
+# ======================================================
+
+# --- General User (일반 사용자 인증) ---
+class UserBase(BaseModel):
+    email: EmailStr
+    username: str
+
+class UserCreate(UserBase):
+    # 일반 사용자 회원가입 요청
+    password: str = Field(..., min_length=8)
+    model_config = {
+        "from_attributes": True
+    }
+
+class UserLogin(BaseModel):
+    # 일반 사용자 로그인 요청
+    email: EmailStr
+    password: str
+
+class Token(BaseModel):
+    # 로그인 성공 시 반환되는 JWT 토큰 응답
+    access_token: str
+    token_type: str
+    user_id: int
+    email: EmailStr
+    username: str
+
+class UserRead(UserBase):
+    # 일반 사용자 정보 조회/응답
+    id: int
+    is_active: bool
+    
+    model_config = {
+        "from_attributes": True
+    }
