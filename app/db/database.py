@@ -1,7 +1,10 @@
+# BE/app/db/database.py
+
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, MetaData, text
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+
+from sqlalchemy import create_engine, MetaData, text, Column, Integer, String, Numeric, DateTime, func
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.engine import URL 
 from sqlalchemy.exc import OperationalError # DB 연결 오류 처리를 위해 추가
 
@@ -59,6 +62,7 @@ def get_db():
     finally:
         db.close()
 
+
 def test_db_connection():
     try:
         with engine.connect() as connection:
@@ -69,3 +73,33 @@ def test_db_connection():
         print("DB 연결 실패: RDS 인스턴스가 실행 중(Available)인지 확인하세요.")
         print(f"   오류 상세: {e}")
         return False
+
+# --- 5. recommend_tourInfo 테이블 모델 정의 (수정) ---
+class TourInfo(Base):
+    __tablename__ = "recommend_tourInfo"
+    
+    # primary key
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True) # Type: INT
+    
+    # API 응답에서 매핑될 컬럼
+    contentid: Mapped[str] = mapped_column(String(10), unique=True, index=True) # Type: VARCHAR(10)
+    title: Mapped[str] = mapped_column(String(255))                             # Type: VARCHAR(255)
+    addr1: Mapped[str] = mapped_column(String(255))                             # Type: VARCHAR(255)
+    
+    # 날짜 필드: VARCHAR(8)에 맞춤
+    event_start_date: Mapped[str] = mapped_column(String(8), nullable=True)     # Type: VARCHAR(8)
+    event_end_date: Mapped[str] = mapped_column(String(8), nullable=True)       # Type: VARCHAR(8)
+    
+    # 지도 좌표: DECIMAL(12, 7)에 맞춤 (Numeric 사용)
+    mapx: Mapped[float] = mapped_column(Numeric(12, 7), nullable=True)          # Type: DECIMAL
+    mapy: Mapped[float] = mapped_column(Numeric(12, 7), nullable=True)          # Type: DECIMAL
+    
+    # 이미지 URL
+    image_url: Mapped[str] = mapped_column(String(500), nullable=True)          # Type: VARCHAR(500)
+    
+    # 자동 생성되는 시간 정보
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now()) # Type: DATETIME
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now()) # Type: DATETIME
+    
+    def __repr__(self) -> str:
+        return f"TourInfo(id={self.id!r}, title={self.title!r})"

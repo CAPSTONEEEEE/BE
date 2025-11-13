@@ -1,4 +1,4 @@
-# app/api.py
+# BE/app/api.py
 from fastapi import APIRouter
 
 # 개별 라우터 임포트

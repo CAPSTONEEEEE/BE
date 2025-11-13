@@ -1,336 +1,239 @@
+# BE/app/router/market_router.py
+
 from __future__ import annotations
 from typing import List, Dict, Optional
-from datetime import datetime
+import uuid, os, shutil
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, status, Depends, Response
+from fastapi import (
+    APIRouter, HTTPException, Query, status, Depends, Response, 
+    Request, UploadFile, Form, File
+)
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+# 새 서비스 함수 임포트
 from app.services.market_service import (
-    # Market / Product
-    create_market, update_market, get_market, list_markets,
-    create_product, update_product, get_product, delete_product, list_products,
-    # Cart & Wishlist
-    add_to_cart, update_cart_item, remove_cart_item, clear_cart, list_cart,
-    add_wishlist, remove_wishlist, list_wishlist,
+    create_product, list_products, get_product,
+    create_qna, list_qna_for_product,
+    add_wishlist, remove_wishlist, list_wishlist
 )
-from app.models.market_models import (
-    MarketCreate, MarketUpdate, MarketOut,
-    ProductCreate as ProductIn, ProductUpdate as ProductInUpdate, ProductOut,
-    CartItemCreate, CartItemUpdate, CartItemOut,
-    WishlistItemCreate, WishlistItemOut,
+# 새 Pydantic 스키마 임포트
+from app.schemas import (
+    MarketProductOut, MarketProductCreateSchema,
+    MarketQnaOut, MarketQnaCreateSchema,
+    MarketWishlistOut
 )
-from pydantic import BaseModel, Field, conint, ConfigDict
+from app.models.users_models import MarketUser
+# ▼▼▼ [수정] common_router에 정의된 더미 함수 임포트 ▼▼▼
+from app.router.common_router import get_current_user_dummy
 
-router = APIRouter(prefix="/markets", tags=["markets"])
 
 # ------------------------------------------------------
-# 공통 페이지네이션 응답 스키마
+# 업로드 경로 (app/static/uploads) 준비 (기존과 동일)
 # ------------------------------------------------------
-class ProductListResponse(BaseModel):
-    items: List[ProductOut]
-    total: int
-    page: int
-    size: int
-    model_config = ConfigDict(from_attributes=True)
+APP_DIR = Path(__file__).resolve().parents[1]   # app/
+STATIC_DIR = APP_DIR / "static"
+UPLOAD_DIR = STATIC_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-class MarketListResponse(BaseModel):
-    items: List[MarketOut]
-    total: int
-    page: int
-    size: int
-    model_config = ConfigDict(from_attributes=True)
 
-class PageCart(BaseModel):
-    items: List[CartItemOut]
-    total: int
-    page: int
-    size: int
-    model_config = ConfigDict(from_attributes=True)
+# prefix를 '/products'로 변경 (FE 코드 기준)
+router = APIRouter(prefix="/products", tags=["market_products"])
 
-class PageWishlist(BaseModel):
-    items: List[WishlistItemOut]
-    total: int
-    page: int
-    size: int
-    model_config = ConfigDict(from_attributes=True)
 
 # ======================================================
-# ===============  상품 (DB 연동 CRUD)  ================
-#   ⚠️ 라우트 우선순위 때문에 고정/세부 경로를 먼저 선언
+# ===============  상품 (Products)  ====================
 # ======================================================
 
-@router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED, summary="상품 등록")
-def create_product_api(payload: ProductIn, db: Session = Depends(get_db)):
-    return create_product(db, payload)
+@router.post(
+    "", # POST /products
+    response_model=MarketProductOut, 
+    status_code=status.HTTP_201_CREATED, 
+    summary="상품 등록 (ProductCreateScreen.js)"
+)
+async def create_product_api(
+    # ... (Form 필드들은 기존과 동일) ...
+    title: str = Form(...),
+    price: int = Form(...),
+    shop_name: Optional[str] = Form(None),
+    location: Optional[str] = Form(None),
+    summary: Optional[str] = Form(None),
+    seller_note: Optional[str] = Form(None),
+    delivery_info: Optional[str] = Form(None),
+    region: Optional[str] = Form(None),
+    images: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    # ▼▼▼ [수정] Depends(get_current_user) -> Depends(get_current_user_dummy) ▼▼▼
+    current_user: MarketUser = Depends(get_current_user_dummy) # 판매자 권한 확인
+):
+    """
+    ProductCreateScreen.js에서 'multipart/form-data'로 전송한 상품 정보를 등록합니다.
+    """
+    # ... (기존 create_product_api 로직은 동일) ...
+    
+    # 0. (추가) 더미 함수가 반환한 유저가 판매자인지 다시 확인
+    if not current_user.is_seller:
+         raise HTTPException(status_code=403, detail="판매자 권한이 없습니다.")
 
-@router.get("/products", response_model=ProductListResponse, summary="상품 목록")
+    # 1. Pydantic 스키마로 폼 데이터 검증
+    try:
+        data = MarketProductCreateSchema(
+            title=title, price=price, shop_name=shop_name, location=location,
+            summary=summary, seller_note=seller_note, delivery_info=delivery_info,
+            region=region
+        )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"폼 데이터 오류: {e}")
+
+    # 2. 이미지 파일 저장
+    saved_files: List[Path] = []
+    try:
+        for file in images:
+            if not file.filename: continue
+            _, ext = os.path.splitext(file.filename)
+            filename = f"{uuid.uuid4().hex}{ext.lower() or '.jpg'}"
+            save_path = UPLOAD_DIR / filename
+            with open(save_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            saved_files.append(save_path)
+    except Exception as e:
+        for path in saved_files:
+            if path.exists(): os.remove(path)
+        raise HTTPException(status_code=500, detail=f"이미지 저장 실패: {e}")
+    
+    # 3. 서비스 로직 호출
+    try:
+        product = create_product(db, data, current_user, saved_files)
+        return product
+    except Exception as e:
+        for path in saved_files:
+            if path.exists(): os.remove(path)
+        raise HTTPException(status_code=500, detail=f"DB 저장 실패: {e}")
+
+
+@router.get(
+    "", # GET /products
+    response_model=List[MarketProductOut], 
+    summary="상품 목록 조회 (MarketHome.js)"
+)
 def list_products_api(
     db: Session = Depends(get_db),
-    q: Optional[str] = Query(None, description="상품명/요약 검색어"),
-    market_id: Optional[int] = Query(None, description="특정 마켓 필터"),
-    category_id: Optional[int] = Query(None, description="카테고리"),
-    region_id: Optional[int] = Query(None, description="지역"),
-    status: Optional[str] = Query("ACTIVE", description="상태: ACTIVE/INACTIVE/OUT_OF_STOCK"),
-    min_price: Optional[float] = Query(None, ge=0),
-    max_price: Optional[float] = Query(None, ge=0),
-    sort: str = Query("recent", pattern="^(recent|price_asc|price_desc|name)$"),
+    q: Optional[str] = Query(None, description="상품명/설명/위치 검색어"),
+    region: Optional[str] = Query('전체', description="지역 필터"),
+    sort: Optional[str] = Query('인기순', description="정렬: 인기순, 후기순, 최신순"),
     page: int = Query(1, ge=1),
-    size: int = Query(12, ge=1, le=100),
+    size: int = Query(20, ge=1, le=100)
 ):
+    """
+    MarketHome.js의 목록 조회 API
+    """
     items, total = list_products(
-        db,
-        q=q,
-        category_id=category_id,
-        region_id=region_id,
-        market_id=market_id,
-        status=status,
-        price_min=min_price,
-        price_max=max_price,
-        page=page,
-        size=size,
-        sort=sort,
+        db, q=q, region=region, sort=sort, page=page, size=size
     )
-    return {"items": items, "total": total, "page": page, "size": size}
+    return items 
 
-@router.get("/products/{product_id}", response_model=ProductOut, summary="상품 상세 정보")
+
+@router.get(
+    "/{product_id}", # GET /products/{product_id}
+    response_model=MarketProductOut, 
+    summary="상품 상세 정보"
+)
 def get_product_api(product_id: int, db: Session = Depends(get_db)):
     obj = get_product(db, product_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Product not found")
     return obj
 
-@router.patch("/products/{product_id}", response_model=ProductOut, summary="상품 수정")
-def update_product_api(product_id: int, payload: ProductInUpdate, db: Session = Depends(get_db)):
-    obj = update_product(db, product_id, payload)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return obj
-
-@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT, summary="상품 삭제")
-def delete_product_api(product_id: int, db: Session = Depends(get_db)):
-    ok = delete_product(db, product_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # ======================================================
-# ===============  장바구니 (DB 연동)  =================
-#   ⚠️ 동적 경로("/{market_id}")보다 위에 둬야 함
+# ============  상품 Q&A (ProductQnAScreen.js)  =========
 # ======================================================
 
-@router.get("/cart", response_model=PageCart, summary="장바구니 목록")
-def list_cart_api(
-    user_id: int = Query(..., description="사용자 ID"),
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+@router.post(
+    "/{product_id}/qna", # POST /products/{product_id}/qna
+    response_model=MarketQnaOut, 
+    status_code=status.HTTP_201_CREATED, 
+    summary="상품 문의 등록 (ProductQnAScreen.js)"
+)
+def create_qna_api(
+    product_id: int,
+    payload: MarketQnaCreateSchema,
     db: Session = Depends(get_db),
+    # ▼▼▼ [수정] Depends(get_current_user) -> Depends(get_current_user_dummy) ▼▼▼
+    current_user: MarketUser = Depends(get_current_user_dummy) # 질문자
 ):
-    items, total = list_cart(db, user_id=user_id, page=page, size=size)
-    return {"items": items, "total": total, "page": page, "size": size}
-
-@router.post("/cart", response_model=CartItemOut, status_code=status.HTTP_201_CREATED, summary="장바구니 추가/누적")
-def add_cart_api(payload: CartItemCreate, db: Session = Depends(get_db)):
-    # 서비스에서 ValueError로 올려주는 에러를 404/400으로 변환
     try:
-        return add_to_cart(db, payload)
-    except ValueError as e:
-        msg = str(e)
-        if msg == "PRODUCT_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="Product not found")
-        raise HTTPException(status_code=400, detail="Invalid cart request")
+        return create_qna(db, payload, product_id, current_user)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"문의 등록 실패: {e}")
 
-@router.patch("/cart/{cart_id}", response_model=CartItemOut, summary="장바구니 수량 변경")
-def update_cart_api(cart_id: int, payload: CartItemUpdate, db: Session = Depends(get_db)):
-    obj = update_cart_item(db, cart_id, payload)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Cart item not found")
-    return obj
 
-@router.delete("/cart/{cart_id}", status_code=status.HTTP_204_NO_CONTENT, summary="장바구니 항목 삭제")
-def delete_cart_api(cart_id: int, db: Session = Depends(get_db)):
-    ok = remove_cart_item(db, cart_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Cart item not found")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+@router.get(
+    "/{product_id}/qna", # GET /products/{product_id}/qna
+    response_model=List[MarketQnaOut], 
+    summary="상품 문의 목록 (ProductQnAScreen.js)"
+)
+def list_qna_api(product_id: int, db: Session = Depends(get_db)):
+    return list_qna_for_product(db, product_id)
 
-@router.delete("/cart", status_code=status.HTTP_204_NO_CONTENT, summary="장바구니 비우기")
-def clear_cart_api(user_id: int = Query(..., description="사용자 ID"), db: Session = Depends(get_db)):
-    clear_cart(db, user_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # ======================================================
-# ===============  찜하기 (DB 연동)  ===================
-#   ⚠️ 동적 경로("/{market_id}")보다 위에 둬야 함
+# ============  찜하기 (WishlistScreen.js)  ============
 # ======================================================
 
-@router.get("/wishlist", response_model=PageWishlist, summary="찜 목록")
-def list_wishlist_api(
-    user_id: int = Query(..., description="사용자 ID"),
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+# Wishlist 라우터를 별도로 생성 (prefix=/wishlist)
+router_wishlist = APIRouter(prefix="/wishlist", tags=["market_wishlist"])
+
+@router_wishlist.post(
+    "", # POST /wishlist
+    response_model=MarketWishlistOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="찜하기 추가 (WishlistScreen.js)"
+)
+def add_wishlist_api(
+    payload: dict,
     db: Session = Depends(get_db),
+    # ▼▼▼ [수정] Depends(get_current_user) -> Depends(get_current_user_dummy) ▼▼▼
+    current_user: MarketUser = Depends(get_current_user_dummy) # 찜한 유저
 ):
-    items, total = list_wishlist(db, user_id=user_id, page=page, size=size)
-    return {"items": items, "total": total, "page": page, "size": size}
-
-@router.post("/wishlist", response_model=WishlistItemOut, status_code=status.HTTP_201_CREATED, summary="찜 추가")
-def add_wishlist_api(payload: WishlistItemCreate, db: Session = Depends(get_db)):
+    product_id = payload.get("id") or payload.get("product_id")
+    if not product_id:
+        raise HTTPException(status_code=400, detail="product_id가 필요합니다.")
     try:
-        return add_wishlist(db, payload.user_id, payload.product_id)
+        wishlist_item = add_wishlist(db, user_id=current_user.id, product_id=int(product_id))
+        return wishlist_item
     except ValueError as e:
-        msg = str(e)
-        if msg == "PRODUCT_NOT_FOUND":
-            raise HTTPException(status_code=404, detail="Product not found")
-        raise HTTPException(status_code=400, detail="Invalid wishlist request")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"처리 중 오류: {e}")
 
-@router.delete("/wishlist", status_code=status.HTTP_204_NO_CONTENT, summary="찜 삭제")
+
+@router_wishlist.delete(
+    "/{product_id}", # DELETE /wishlist/{product_id}
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="찜하기 취소 (WishlistScreen.js)"
+)
 def remove_wishlist_api(
-    user_id: int = Query(..., description="사용자 ID"),
-    product_id: int = Query(..., description="상품 ID"),
+    product_id: int,
     db: Session = Depends(get_db),
+    # ▼▼▼ [수정] Depends(get_current_user) -> Depends(get_current_user_dummy) ▼▼▼
+    current_user: MarketUser = Depends(get_current_user_dummy) # 찜한 유저
 ):
-    ok = remove_wishlist(db, user_id, product_id)
+    ok = remove_wishlist(db, user_id=current_user.id, product_id=product_id)
     if not ok:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist item not found")
+        raise HTTPException(status_code=404, detail="Wishlist item not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# ======================================================
-# ===============  마켓 (DB 연동 CRUD)  ================
-#   ⚠️ 동적 경로는 항상 마지막 쪽에 배치
-# ======================================================
 
-@router.get("", response_model=MarketListResponse, summary="마켓 목록")
-def list_markets_api(
+@router_wishlist.get(
+    "", # GET /wishlist
+    response_model=List[MarketWishlistOut],
+    summary="내 찜 목록 (WishlistScreen.js)"
+)
+def list_my_wishlist_api(
     db: Session = Depends(get_db),
-    q: str | None = Query(None, description="마켓명/설명 검색어"),
-    region_id: int | None = Query(None, description="지역 ID"),
-    is_active: bool | None = Query(True, description="활성 여부"),
-    order_by: str = Query("recent", pattern="^(recent|name)$"),
-    page: int = Query(1, ge=1),
-    size: int = Query(12, ge=1, le=100),
+    # ▼▼▼ [수정] Depends(get_current_user) -> Depends(get_current_user_dummy) ▼▼▼
+    current_user: MarketUser = Depends(get_current_user_dummy)
 ):
-    items, total = list_markets(
-        db,
-        q=q,
-        region_id=region_id,
-        is_active=is_active,
-        page=page,
-        size=size,
-        order_by=order_by,
-    )
-    return {"items": items, "total": total, "page": page, "size": size}
-
-@router.post("", response_model=MarketOut, status_code=status.HTTP_201_CREATED, summary="마켓 생성")
-def create_market_api(payload: MarketCreate, db: Session = Depends(get_db)):
-    return create_market(db, payload)
-
-@router.get("/{market_id}", response_model=MarketOut, summary="마켓 상세")
-def get_market_api(market_id: int, db: Session = Depends(get_db)):
-    obj = get_market(db, market_id)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Market not found")
-    return obj
-
-@router.patch("/{market_id}", response_model=MarketOut, summary="마켓 수정")
-def update_market_api(market_id: int, payload: MarketUpdate, db: Session = Depends(get_db)):
-    obj = update_market(db, market_id, payload)
-    if not obj:
-        raise HTTPException(status_code=404, detail="Market not found")
-    return obj
-
-# ======================================================
-# ======  판매자/문의/후기 (기존 Mock 그대로 유지)  ======
-# ======================================================
-
-class SellerCreate(BaseModel):
-    seller_name: str = Field(..., description="판매자 이름")
-    phone: Optional[str] = Field(None, description="연락처")
-    market_name: str = Field(..., description="마켓 이름")
-    address: Optional[str] = Field(None, description="주소")
-
-class SellerUpdate(BaseModel):
-    seller_name: Optional[str] = None
-    phone: Optional[str] = None
-    market_name: Optional[str] = None
-    address: Optional[str] = None
-
-class SellerOut(SellerCreate):
-    id: int
-
-class ContactRequest(BaseModel):
-    user_id: int
-    message: str = Field(..., description="첫 메시지(문의 내용)")
-
-class ContactResponse(BaseModel):
-    ok: bool
-    chat_room_id: str
-    product_id: int
-    created_at: datetime
-
-class ReviewCreate(BaseModel):
-    user_id: int
-    rating: conint(ge=1, le=5)
-    comment: Optional[str] = None
-
-class ReviewOut(ReviewCreate):
-    id: int
-    product_id: int
-    created_at: datetime
-
-_mock_sellers: List[Dict] = []
-_mock_reviews: List[Dict] = []
-_next_seller_id = 1
-_next_review_id = 1
-
-@router.post("/seller", response_model=SellerOut, status_code=status.HTTP_201_CREATED, summary="판매자 등록")
-def register_seller(payload: SellerCreate):
-    global _next_seller_id
-    obj = {"id": _next_seller_id, **payload.dict()}
-    _mock_sellers.append(obj)
-    _next_seller_id += 1
-    return obj
-
-@router.patch("/seller/{seller_id}", response_model=SellerOut, summary="판매자 수정")
-def update_seller(seller_id: int, payload: SellerUpdate):
-    s = next((x for x in _mock_sellers if x["id"] == seller_id), None)
-    if not s:
-        raise HTTPException(status_code=404, detail="Seller not found")
-    s.update({k: v for k, v in payload.dict(exclude_unset=True).items()})
-    return s
-
-@router.delete("/seller/{seller_id}", status_code=status.HTTP_204_NO_CONTENT, summary="판매자 삭제")
-def delete_seller(seller_id: int):
-    idx = next((i for i, x in enumerate(_mock_sellers) if x["id"] == seller_id), None)
-    if idx is None:
-        raise HTTPException(status_code=404, detail="Seller not found")
-    _mock_sellers.pop(idx)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-@router.post("/products/{product_id}/contact", response_model=ContactResponse, summary="실시간 채팅 시작(문의)")
-def start_contact(product_id: int, payload: ContactRequest):
-    return ContactResponse(
-        ok=True,
-        chat_room_id=f"chat_{product_id}_{payload.user_id}",
-        product_id=product_id,
-        created_at=datetime.utcnow(),
-    )
-
-@router.post("/products/{product_id}/review", response_model=ReviewOut, status_code=status.HTTP_201_CREATED, summary="거래 후기 및 평가")
-def add_review(product_id: int, payload: ReviewCreate):
-    global _next_review_id
-    obj = {
-        "id": _next_review_id,
-        "product_id": product_id,
-        "user_id": payload.user_id,
-        "rating": payload.rating,
-        "comment": payload.comment,
-        "created_at": datetime.utcnow(),
-    }
-    _mock_reviews.append(obj)
-    _next_review_id += 1
-    return obj
-
-@router.get("/products/{product_id}/reviews", response_model=List[ReviewOut], summary="상품 후기 목록")
-def list_reviews(product_id: int):
-    return [r for r in _mock_reviews if r["product_id"] == product_id]
+    return list_wishlist(db, user_id=current_user.id)
