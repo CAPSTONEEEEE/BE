@@ -255,6 +255,9 @@ class UserRead(UserBase):
     id: int
     is_active: bool
     
+    is_business: bool
+    business_registration_number: Optional[str]
+    
     model_config = {
         "from_attributes": True
     }
