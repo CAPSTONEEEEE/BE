@@ -11,6 +11,7 @@ from app.services import user_service
 from app.security import create_access_token, verify_password, get_password_hash
 import app.security as security
 from app.schemas import UserCreate, UserLogin, UserRead, Token 
+from app.models.base_user_models import User
 
 
 router = APIRouter(prefix="/auth", tags=["Auth & Users"])
@@ -18,18 +19,32 @@ router = APIRouter(prefix="/auth", tags=["Auth & Users"])
 # ======================================================
 # 1. 회원가입 (Register)
 # ======================================================
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED, summary="회원가입")
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """새로운 사용자를 등록합니다."""
+    
     # 1. 이메일 중복 확인
     db_user = user_service.get_user_by_email(db, email=user.email)
     if db_user:
-        raise HTTPException(status_code=400, detail="이미 등록된 이메일입니다.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 이메일입니다.")
     
-    # 2. 사용자 생성 (서비스 레이어에서 비밀번호 해싱 처리)
+    # 2. 사업자 등록 번호 중복 확인 (사업자인 경우에만)
+    # user.is_business가 True이고, business_registration_number 값이 있을 때만 검사합니다.
+    if user.is_business and user.business_registration_number:
+        
+        existing_business_user = db.query(User).filter(
+            # DB 컬럼(User....)과 요청 데이터(user....)를 비교합니다.
+            User.business_registration_number == user.business_registration_number 
+        ).first()
+        
+        if existing_business_user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 사업자 번호입니다.")
+    
+    # 3. 사용자 생성 (서비스 레이어에서 비밀번호 해싱 처리)
+    # user 객체를 그대로 서비스 레이어로 전달합니다.
     created_user = user_service.create_user(db=db, user_create=user)
     
-    # 3. UserRead 스키마로 반환 (ID, email)
+    # 4. UserRead 스키마로 반환
     return created_user
 
 # ======================================================

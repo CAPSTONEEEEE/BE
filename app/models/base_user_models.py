@@ -15,3 +15,5 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
 
     is_active = Column(Boolean, default=True) # 계정 활성화 상태
+    is_business = Column(Boolean, default=False) #사업자 여부
+    business_registration_number = Column(String(10), unique=True, index=True, nullable=True)
