@@ -29,19 +29,15 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 이메일입니다.")
     
     # 2. 사업자 등록 번호 중복 확인 (사업자인 경우에만)
-    # user.is_business가 True이고, business_registration_number 값이 있을 때만 검사합니다.
     if user.is_business and user.business_registration_number:
-        
         existing_business_user = db.query(User).filter(
-            # DB 컬럼(User....)과 요청 데이터(user....)를 비교합니다.
             User.business_registration_number == user.business_registration_number 
         ).first()
         
         if existing_business_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 사업자 번호입니다.")
     
-    # 3. 사용자 생성 (서비스 레이어에서 비밀번호 해싱 처리)
-    # user 객체를 그대로 서비스 레이어로 전달합니다.
+    # 3. 사용자 생성
     created_user = user_service.create_user(db=db, user_create=user)
     
     # 4. UserRead 스키마로 반환
@@ -50,16 +46,15 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 # ======================================================
 # 2. 로그인 (Login & Token 발급)
 # ======================================================
-# 참고: 일반적으로 POST /token 엔드포인트를 사용하지만, 여기서는 클라이언트 편의를 위해 /login 사용
 @router.post("/login", response_model=Token)
 async def login_for_access_token(
-    user_login: UserLogin, # 클라이언트에서 이메일/비번을 JSON으로 받을 경우
+    user_login: UserLogin,
     db: Session = Depends(get_db)
 ):
     """
     이메일과 비밀번호를 검증하고 JWT 액세스 토큰을 발급합니다.
     """
-    # 1. 사용자 인증 (서비스 레이어에서 비밀번호 검증)
+    # 1. 사용자 인증
     user = user_service.authenticate_user(db, email=user_login.email, password=user_login.password)
     
     if not user:
@@ -74,13 +69,20 @@ async def login_for_access_token(
         data={"sub": user.email},
     )
     
-    # 3. 토큰과 사용자 정보를 포함하여 반환
-    return {"access_token": access_token, "token_type": "bearer", "user_id": user.id, "username": user.username, "email": user.email}
-    
+    # 3. 토큰 + 사용자 정보 반환 (★ 최소 수정: 아래 2줄만 추가됨)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "is_business": user.is_business,  # ★ 추가
+        "business_registration_number": user.business_registration_number  # ★ 추가
+    }
+
 # ======================================================
-# 3. 현재 사용자 정보 조회 (테스트 및 디버깅용)
+# 3. 현재 사용자 정보 조회
 # ======================================================
-# 이 엔드포인트는 다음 단계에서 '현재 로그인된 사용자'를 확인하는 Depends 함수를 추가해야 완성됩니다.
 @router.get("/users/me", response_model=UserRead)
 def read_users_me(current_user: UserRead = Depends(security.get_current_user)):
     """현재 로그인된 사용자 정보를 반환합니다."""
