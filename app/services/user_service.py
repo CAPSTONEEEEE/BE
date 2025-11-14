@@ -33,7 +33,9 @@ def create_user(db: Session, user_create: UserCreate):
         email=user_create.email,
         username=user_create.username, 
         hashed_password=hashed_password,
-        is_active=True
+        is_active=True,
+        is_business=user_create.is_business, 
+        business_registration_number=user_create.business_registration_number
     )
     
     # DB에 저장

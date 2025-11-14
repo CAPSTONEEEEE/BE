@@ -1,6 +1,6 @@
 # BE/app/schemas.py
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, model_validator, ValidationInfo
 from typing import List, Optional
 from datetime import datetime
 
@@ -206,6 +206,33 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     # 일반 사용자 회원가입 요청
     password: str = Field(..., min_length=8)
+    
+    # +사업자 여부 (기본값 False)
+    is_business: bool = False 
+    
+    # +사업자 등록 번호 (선택적 필드, 사업자일 경우에만 필요)
+    business_registration_number: Optional[str] = None 
+    
+    # 사업자 등록 번호 유효성 검사 로직 추가
+    @model_validator(mode='after')
+    @classmethod
+    def validate_business_registration_number(cls, model_instance, info: ValidationInfo):
+        
+        is_business = model_instance.is_business
+        business_number = model_instance.business_registration_number
+        
+        # 유효성 검사 로직
+        if is_business:
+            if not business_number:
+                # 사업자인데 번호가 없는 경우
+                raise ValueError('사업자는 사업자 등록 번호를 입력해야 합니다.')
+            if len(business_number) != 10 or not business_number.isdigit():
+                # 번호 형식이 잘못된 경우
+                raise ValueError('사업자 등록 번호는 10자리의 숫자여야 합니다.')
+        
+        # 유효성 검사를 통과한 모델 인스턴스를 반환합니다.
+        return model_instance
+    
     model_config = {
         "from_attributes": True
     }
