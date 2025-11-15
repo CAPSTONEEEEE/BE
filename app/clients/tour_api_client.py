@@ -10,7 +10,7 @@ class TourAPIClient:
     """
     한국관광공사 TourAPI와의 통신을 담당하는 클라이언트 클래스
     """
-    BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
+    BASE_URL = "http://apis.data.go.kr/B551011/KorService2"
 
     def __init__(self):
         self.service_key = settings.TOUR_API_KEY # .env 파일에 저장된 키를 가져옵니다.
@@ -103,6 +103,57 @@ class TourAPIClient:
     # TourAPIClient 클래스의 정의 부분이라고 가정
 
 
+    def get_area_based_list(self, area_code: str, content_type_id: str, num_of_rows: int = 100, page_no: int = 1) -> List[Dict[str, Any]]:
+        """
+        특정 지역 코드(area_code)와 콘텐츠 타입 ID를 기준으로 데이터를 가져옵니다.
+        """
+        # API 엔드포인트 변경: /KorService1 대신 /KorService를 사용했을 수 있으므로 확인 필요
+        # 일반적으로 목록 조회는 /areaBasedList1
+        endpoint = "areaBasedList2" 
+        params = {
+            'areaCode': area_code,
+            'contentTypeId': content_type_id,
+            'numOfRows': num_of_rows,
+            'pageNo': page_no,
+        }
+        
+        # _send_request는 TourAPIClient 내부에 정의된 API 호출 및 파싱 함수라고 가정합니다.
+        # 기존 코드 스니펫에서 _send_request가 List[Dict[str, Any]]를 반환한다고 가정
+        return self._send_request(endpoint, params)
+    
+    
+    def get_total_count(self, area_code: str, content_type_id: str) -> int:
+        """
+        전체 개수를 파악하기 위해 1개의 데이터만 요청합니다.
+        """
+        endpoint = "areaBasedList2" 
+        params = {
+            'areaCode': area_code,
+            'contentTypeId': content_type_id,
+            'numOfRows': 1,  # 1개만 요청하여 totalCount 확인
+            'pageNo': 1,
+        }
+        
+        # _send_request 대신, totalCount를 직접 파싱하는 새로운 요청 로직이 필요합니다.
+        # 여기서는 편의상 전체 응답을 받아 totalCount를 파싱하는 임시 코드를 사용합니다.
+        url = f"{self.BASE_URL}/{endpoint}"
+        common_params = {
+            # ... (self._send_request 내부의 common_params와 동일하게 설정)
+        }
+        params.update(common_params)
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status() 
+            data = response.json()
+            
+            # totalCount 추출 로직 (응답 구조에 따라 수정 필요)
+            total_count = data.get('response', {}).get('body', {}).get('totalCount', 0)
+            return int(total_count)
+            
+        except Exception as e:
+            print(f"TotalCount 요청 중 오류 발생: {e}")
+            return 0
 
 # 다른 파일에서 쉽게 가져다 쓸 수 있도록 인스턴스를 만들어 둡니다.
 tour_api_client = TourAPIClient()
