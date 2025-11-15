@@ -44,6 +44,9 @@ print(f"CORS origins configured: {origins}")
 # --- API 라우터 임포트 ---
 from app.api import api_router 
 app.include_router(api_router, prefix=settings.API_V1_STR) 
+# --- 찜 라우터 임포트  ---
+from app.router.favorite_router import router as favorites_router
+app.include_router(favorites_router, prefix=settings.API_V1_STR) 
 
 # ======= 정적 파일 마운트 (mock_data 및 uploads) =======
 BASE_DIR = Path(__file__).resolve().parent.parent  # BE/app -> parent == BE
@@ -59,10 +62,6 @@ app.mount("/mock_data", StaticFiles(directory=str(MOCK_DIR)), name="mock_data")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # =============================================
 
-
-# 기능 라우터
-app.include_router(api_router, prefix="/api/v1") 
-
 @app.on_event("startup")
 def startup_event():
     """
@@ -72,6 +71,4 @@ def startup_event():
 
 @app.get("/")
 def root():
-    # 이 엔드포인트는 common_router.py의 "/"와 겹치므로
-    # common_router.py의 "/"가 /api/v1/ 로 등록됩니다.
     return {"message": "Sosohaeng Backend API Root"}
