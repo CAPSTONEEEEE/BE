@@ -9,7 +9,7 @@ from app.models.recommend_models import TourInfoOut
 # ▼▼▼ 1. Recommand 스키마  ▼▼▼
 # ======================================================
 
-## 1. 챗봇 스키마 (팀원 작업 보존)
+## 1. 챗봇 스키마 
 # 챗봇에 전송하는 사용자의 메시지 모델입니다.
 class ChatbotRequest(BaseModel):
     message: str = Field(..., description="챗봇에게 보낼 사용자의 메시지.")
@@ -19,7 +19,7 @@ class ChatbotResponse(BaseModel):
     response: str = Field(..., description="챗봇의 텍스트 응답.")
 
 
-## 2. 추천 스키마 (팀원 작업 보존)
+## 2. 추천 스키마 
 # 단일 추천 항목(여행지, 상품 등)을 위한 모델입니다.
 class RecommendationOut(BaseModel):
     id: int = Field(..., description="추천 항목의 고유 ID.")
@@ -37,7 +37,7 @@ class RandomRecommendResponse(BaseModel):
     message: str = Field("랜덤 여행지 추천이 완료되었습니다.", description="응답 상태 메시지.")
     recommendations: List[RecommendationOut] = Field([], description="추천된 여행지 목록.")
 
-## 3. 챗봇-추천 결합 스키마 (팀원 작업 보존)
+## 3. 챗봇-추천 결합 스키마 
 # 챗봇의 응답과 함께 추천 목록도 포함하는 고급 모델입니다.
 # 챗봇이 특정 여행지를 추천할 때 사용될 수 있습니다.
 class ChatRecommendResponse(BaseModel):
@@ -80,7 +80,7 @@ class FestivalListResponse(BaseModel):
 
 
 # ======================================================
-# ▼▼▼ 3. Market & MarketUser 스키마 (새로 추가) ▼▼▼
+# ▼▼▼ 3. Market & MarketUser 스키마  ▼▼▼
 # ======================================================
 
 # --- User (market_users) ---
@@ -261,3 +261,35 @@ class UserRead(UserBase):
     model_config = {
         "from_attributes": True
     }
+    
+# ======================================================
+# ▼▼▼ 5. Favorites Schemas ▼▼▼
+# ======================================================
+from typing import Literal
+
+# 찜 추가/제거 요청 시 사용
+class FavoriteRequest(BaseModel):
+    # item_type은 정해진 문자열(Literal)만 받도록 하여 안정성 확보
+    item_type: Literal["FESTIVAL", "PRODUCT", "SPOT"] = Field(
+        ..., description="찜 항목의 종류 (FESTIVAL, PRODUCT, SPOT 중 하나)"
+    )
+    item_id: int = Field(..., description="찜 항목의 고유 ID")
+
+# 찜 조회 시 단일 항목의 응답
+class FavoriteItemOut(BaseModel):
+    # 찜 항목의 실제 ID (축제 ID, 상품 ID 등)
+    item_id: int = Field(..., description="찜 항목의 고유 ID")
+    # 찜 항목의 타입
+    item_type: str = Field(..., description="찜 항목의 타입 (FESTIVAL, PRODUCT, SPOT)")
+    # 프론트엔드 표시에 사용될 핵심 정보
+    title: str = Field(..., description="찜 항목의 제목")
+    image_url: Optional[str] = Field(None, description="찜 항목의 썸네일 이미지 URL")
+    
+    class Config:
+        from_attributes = True
+
+# 통합 찜 목록 조회 시 응답
+class FavoriteListResponse(BaseModel):
+    festivals: List[FavoriteItemOut] = Field([], description="찜한 축제 목록")
+    products: List[FavoriteItemOut] = Field([], description="찜한 마켓 상품 목록")
+    spots: List[List[FavoriteItemOut]] = Field([], description="찜한 추천 여행지 목록")
