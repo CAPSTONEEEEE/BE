@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from typing import Optional
 
-from app.db.database import DATABASE_URL_STR
+# from app.db.database import DATABASE_URL_STR  <- [삭제]
 
 class Settings(BaseSettings):
     # 프로젝트 기본 정보
@@ -14,10 +14,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str 
     ALGORITHM: str = "HS256"
     
-    database_url: str = Field(
-        default=DATABASE_URL_STR,
-        alias="DATABASE_URL",
-    )
+    # database_url: str = Field( <- [삭제]
+    #     default=DATABASE_URL_STR,
+    #     alias="DATABASE_URL",
+    # )
     CORS_ORIGINS: str 
     # 기존 변수들
     TOUR_API_KEY: str
@@ -29,10 +29,14 @@ class Settings(BaseSettings):
     
     # .env 파일에 추가된 변수들도 여기에 선언해주어야 합니다.
     environment: str
-    database_url: str
+    database_url: str # <- .env에서 이 값을 직접 읽어옵니다.
     cors_origins: str
     openai_model: str
     
+    # ▼▼▼ (이전 수정사항) 서버 루트 URL - 그대로 유지 ▼▼▼
+    SERVER_ROOT_URL: str = "http://127.0.0.1:8000"
+    # ▲▲▲ (이전 수정사항) 서버 루트 URL - 그대로 유지 ▲▲▲
+
     model_config = SettingsConfigDict(env_file=".env", extra='ignore')
 
 @lru_cache
