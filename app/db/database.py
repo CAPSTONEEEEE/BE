@@ -74,3 +74,4 @@ def test_db_connection():
         print(f"   오류 상세: {e}")
         return False
 
+from app.models import tour_models
