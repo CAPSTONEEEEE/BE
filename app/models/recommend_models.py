@@ -72,8 +72,8 @@ class TourInfoBase(BaseModel):
     cat3: Optional[str] = Field(None, description="소분류")
     tel: Optional[str] = Field(None, description="전화번호")
     
-    firstimage: Optional[HttpUrl] = Field(None, description="대표 이미지 URL")
-    firstimage2: Optional[HttpUrl] = Field(None, description="썸네일 이미지 URL")
+    firstimage: Optional[str] = Field(None, description="대표 이미지 URL")
+    firstimage2: Optional[str] = Field(None, description="썸네일 이미지 URL")
     
     mapx: Optional[float] = Field(None, description="경도(X)")
     mapy: Optional[float] = Field(None, description="위도(Y)")
