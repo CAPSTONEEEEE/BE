@@ -1,6 +1,6 @@
 # BE/app/schemas.py
 
-from pydantic import BaseModel, Field, EmailStr, model_validator, ValidationInfo
+from pydantic import BaseModel, Field, EmailStr, model_validator, ValidationInfo, computed_field
 from typing import List, Optional
 from datetime import datetime
 
@@ -175,10 +175,30 @@ class MarketProductOut(BaseModel):
     created_at: datetime
     
     seller: MarketUserOut # 판매자 정보
-    images: List[MarketProductImageOut] = [] # 상품 이미지 목록
+    images: List[MarketProductImageOut] = [] # 상품 이미지 목록 (상세페이지용)
     
     # 상세 보기 시 Q&A 목록 (선택적 포함)
     qna_list: List[MarketQnaOut] = [] 
+    
+    # ▼▼▼ [핵심 수정] ▼▼▼
+    # MarketHome.js 썸네일을 위해 'image' 필드를 자동으로 계산
+    @computed_field(return_type=Optional[str])
+    @property
+    def image(self) -> Optional[str]:
+        """
+        product.images 리스트에서 썸네일(is_thumbnail=true)을 찾아 반환.
+        없으면 첫 번째 이미지를, 그것도 없으면 None을 반환합니다.
+        """
+        if not self.images:
+            return None
+        
+        # 1. is_thumbnail=true 인 것을 찾습니다.
+        for img in self.images:
+            if img.is_thumbnail:
+                return img.image_url
+        
+        # 2. 썸네일이 지정되지 않았다면, 그냥 0번째 이미지를 썸네일로 사용합니다.
+        return self.images[0].image_url
 
     class Config:
         from_attributes = True
