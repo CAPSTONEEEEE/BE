@@ -41,7 +41,7 @@ class RandomRecommendResponse(BaseModel):
 class ChatRecommendResponse(BaseModel):
     response: str = Field(..., description="챗봇의 텍스트 응답.")
     recommendations: List[TourInfoOut] = Field([], description="추천된 DB 기반여행지 목록.")
-    recommendations: List[RecommendationOut] = Field([], description="추천된 여행지 목록.")
+    # recommendations: List[RecommendationOut] = Field([], description="추천된 여행지 목록.")
     
 # ======================================================
 # ▼▼▼ 2. Festival 스키마  ▼▼▼
