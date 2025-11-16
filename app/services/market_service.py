@@ -77,7 +77,9 @@ def list_products(
     stmt = (
         select(MarketProduct)
         .options(
-            selectinload(MarketProduct.images), # 이미지를 Eager load
+            # ▼▼▼ [핵심 수정] Eager Loading 방식을 selectinload -> joinedload로 변경 ▼▼▼
+            joinedload(MarketProduct.images), # 이미지를 Eager load (JOIN)
+            # ▲▲▲ [핵심 수정] ▲▲▲
             joinedload(MarketProduct.seller)   # 판매자 정보를 Eager load
         )
     )
@@ -107,7 +109,7 @@ def list_products(
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = db.execute(
         stmt.offset((page - 1) * size).limit(size)
-    ).scalars().unique().all() # unique()로 중복 제거
+    ).scalars().unique().all() # unique()로 joinedload 중복 제거
     
     return rows, (total or 0)
 

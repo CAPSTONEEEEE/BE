@@ -6,8 +6,10 @@ from datetime import datetime
 
 from app.models.recommend_models import TourInfoOut
 
-from app.core.config import get_settings
-settings = get_settings()
+# ▼▼▼ [핵심 수정 1] 파일 최상단에서 settings 로드하는 라인을 주석 처리 또는 삭제합니다. ▼▼▼
+# from app.core.config import get_settings
+# settings = get_settings()
+# ▲▲▲ [핵심 수정 1] ▲▲▲
 
 
 # ======================================================
@@ -164,7 +166,6 @@ class MarketProductOut(BaseModel):
     images: List[MarketProductImageOut] = [] 
     qna_list: List[MarketQnaOut] = [] 
     
-    # ▼▼▼ [핵심 수정 2] 'image' 계산 필드 로직 변경 ▼▼▼
     @computed_field(return_type=Optional[str])
     @property
     def image(self) -> Optional[str]:
@@ -172,25 +173,33 @@ class MarketProductOut(BaseModel):
         MarketHome.js 썸네일을 위해 절대 경로 URL을 생성합니다.
         순환 참조를 피하기 위해 config를 이 함수 내에서 로드합니다. (지연 로딩)
         """
+        
+        # ▼▼▼ [핵심 수정] settings를 파일 상단이 아닌, 함수 내부에서 가져옵니다. ▼▼▼
+        from app.core.config import get_settings
+        settings = get_settings()
+        # ▲▲▲ [핵심 수정] ▲▲▲
 
         if not self.images:
             return None
         
+        # 1. 썸네일로 지정된 이미지를 찾습니다.
         target_image = next(
             (img for img in self.images if img.is_thumbnail), 
             None
         )
         
+        # 2. 썸네일이 없으면, 0번째 이미지를 사용합니다.
         if not target_image:
             target_image = self.images[0]
 
         url = target_image.image_url
 
+        # 3. 이미 절대 경로이면 그대로 반환 (임시 데이터용)
         if url.startswith("http://") or url.startswith("https://"):
             return url
         
+        # 4. 상대 경로이면(.env의 SERVER_ROOT_URL 사용) 절대 경로로 만듭니다.
         return f"{settings.SERVER_ROOT_URL.rstrip('/')}/{url.lstrip('/')}"
-    # ▲▲▲ [핵심 수정 2] ▲▲▲
 
     class Config:
         from_attributes = True
