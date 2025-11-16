@@ -12,8 +12,7 @@ from app.schemas import (
 )
 
 from app.services.recommend_service import (
-    get_chatbot_search_keywords_and_recommendations, # RAG 통합 함수
-    get_random_recommendations_from_db
+    get_chatbot_search_keywords_and_recommendations
 )
 
 # 2. APIRouter 인스턴스 정의 (가장 중요)
