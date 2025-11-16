@@ -121,6 +121,7 @@ class TourAPIClient:
         # 기존 코드 스니펫에서 _send_request가 List[Dict[str, Any]]를 반환한다고 가정
         return self._send_request(endpoint, params)
     
+
     
     def get_total_count(self, area_code: str, content_type_id: str) -> int:
         """
