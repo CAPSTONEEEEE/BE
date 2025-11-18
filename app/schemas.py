@@ -170,15 +170,9 @@ class MarketProductOut(BaseModel):
     @property
     def image(self) -> Optional[str]:
         """
-        MarketHome.js 썸네일을 위해 절대 경로 URL을 생성합니다.
-        순환 참조를 피하기 위해 config를 이 함수 내에서 로드합니다. (지연 로딩)
+        MarketHome.js 썸네일을 위해 URL을 반환합니다.
+        상대 경로인 경우, 프론트엔드에서 Base URL을 붙일 수 있도록 그대로 반환합니다.
         """
-        
-        # ▼▼▼ [핵심 수정] settings를 파일 상단이 아닌, 함수 내부에서 가져옵니다. ▼▼▼
-        from app.core.config import get_settings
-        settings = get_settings()
-        # ▲▲▲ [핵심 수정] ▲▲▲
-
         if not self.images:
             return None
         
@@ -194,13 +188,14 @@ class MarketProductOut(BaseModel):
 
         url = target_image.image_url
 
-        # 3. 이미 절대 경로이면 그대로 반환 (임시 데이터용)
+        # 3. 이미 http로 시작하는 절대 경로(외부 이미지 등)면 그대로 반환
         if url.startswith("http://") or url.startswith("https://"):
             return url
         
-        # 4. 상대 경로이면(.env의 SERVER_ROOT_URL 사용) 절대 경로로 만듭니다.
-        return f"{settings.SERVER_ROOT_URL.rstrip('/')}/{url.lstrip('/')}"
-
+        # 4. [핵심 수정] 상대 경로(/static/...)라면 서버 URL을 붙이지 않고 그대로 반환합니다.
+        # 프론트엔드(MarketHome.js)가 자신의 환경(Localhost/Emulator/Device)에 맞는 URL을 붙이도록 합니다.
+        return url
+    
     class Config:
         from_attributes = True
 
