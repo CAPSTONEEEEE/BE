@@ -22,6 +22,7 @@ try:
     if openai_api_key:
         # 2. 환경 변수가 있을 때만 클라이언트 객체 할당
         openai_client = AsyncOpenAI(api_key=openai_api_key)
+        print("OpenAI 클라이언트 초기화 성공.")
     else:
         # API 키가 없는 경우 None을 유지하며 경고 출력
         print("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다. AI 서비스가 비활성화됩니다.")
@@ -65,7 +66,14 @@ def parse_final_response(content: str) -> Dict[str, Any]:
         if start_brace == -1 or end_brace == -1:
              return {"response_text": content, "recommendations": []}
 
-        json_string_clean = json_string_candidate[start_brace : end_brace + 1].strip('`').strip()
+        json_string_clean = json_string_candidate[start_brace : end_brace + 1].strip()
+        
+        if json_string_clean.startswith('```json') and json_string_clean.endswith('```'):
+             json_string_clean = json_string_clean.strip('`json').strip('`').strip()
+        elif json_string_clean.startswith('{') and json_string_clean.endswith('}'):
+            pass
+        else:
+             print(f"Warning: JSON candidate started with unexpected format: {json_string_clean[:50]}")
         
         # 4. JSON 파싱
         json_data = json.loads(json_string_clean)
@@ -131,64 +139,83 @@ async def get_chatbot_search_keywords_and_recommendations(user_message: str):
 
     # -------------------------------------------------------------
 
-    profile_fields = ["relation", "people", "when", "period", "transportation", "style", "budget", "age"]
+    profile_fields = ["style", "when", "relation", "transportation"] 
     recommend_count = 3
     
-    # === system_prompt 재구성: 턴 카운트 및 질문 효율성 강화 ===
+    # ⭐️ [NEW] 현재 프로필 상태를 프롬프트에 직접 삽입하여 AI가 잊지 않도록 강제 ⭐️
+    current_profile_str = json.dumps(current_profile, ensure_ascii=False)
+    
     system_prompt = (
-        f"[역할]\n당신은 한국의 소도시 여행 큐레이션 전문가 '소소행'입니다. 현재 **대화 턴은 {turn_count}/{MAX_TURNS}** 입니다.\n"
-        f"{'FORCE_FINAL_MODE가 True이므로 이 응답은 무조건 FINAL 모드여야 합니다.' if FORCE_FINAL_MODE else 'FINAL 모드가 아니라면, 질문 우선순위에 따라 다음 질문을 합니다.'}\n"
-        "당신이 관리하는 프로필 필드는 {', '.join(profile_fields)} 입니다.\n\n"
+        f"[역할]\n당신은 한국의 소도시 여행 큐레이션 전문가 '소소행'입니다. 사용자에게 **정확히 4가지 질문**을 순서대로 제시하여 정보를 수집합니다. (총 5턴: 초기 질문 + 4회 심화 질문, **절대 이를 초과하지 말 것.**)\n"
+        f"현재 대화 턴은 {turn_count}/{MAX_TURNS} 입니다.\n"
+        f"당신이 관리하는 프로필 필드는 {', '.join(profile_fields)} 입니다.\n\n"
+        f"### 이전까지 파악된 프로필 상태 (절대 초기화 금지) ###\n"
+        f"CURRENT_PROFILE_STATE: {current_profile_str}\n"
+        f"####################################################\n\n"
         
-        "[정보 파악 규칙]\n"
-        "1. **반복 금지**: `current_profile`에 이미 값이 채워진 필드는 재차 질문하지 않습니다.\n"
-        "2. **질문 조합**: 효율성을 위해, **비슷한 필드(예: 인원/관계, 시기/기간)는 하나의 질문으로 묶어** 파악합니다.\n"
-        "3. **질문 우선순위**: 필드가 비어있고 FINAL 모드가 강제되지 않았다면 다음 순서로 질문합니다:\n"
-        "   - **우선순위 1 (Style/키워드)**: `style`이 비어있다면, 사용자의 답변을 바탕으로 RAG 키워드 3개를 확장 제시하며 취향에 맞는 것을 선택하게 유도하는 질문을 먼저 합니다.\n"
-        "   - **우선순위 2 (People/Relation)**: `people` 또는 `relation` 중 하나라도 비어있다면, '함께 여행하시는 **인원**은 몇 명이고, **관계**는 어떻게 되시나요?'를 질문합니다.\n"
-        "   - **우선순위 3 (When/Period)**: `when` 또는 `period` 중 하나라도 비어있다면, '여행 **시기**와 **기간**은 어느 정도로 생각하고 계신가요?'를 질문합니다.\n"
-        "   - **우선순위 4 (Transportation)**: `transportation`이 비어있다면, '주로 이용할 **교통수단**은 대중교통인가요, 아니면 자가용/차량인가요?'를 질문합니다.\n"
-        "4. **자동 파악**: 사용자가 질문하지 않은 정보(예: `age`, `budget`)를 메시지에서 파악했다면, `current_profile`에 즉시 채웁니다.\n\n"
+        "[정보 파악 규칙] - AI는 이 규칙을 **철저하게 지켜야** 합니다. 질문 순서 위반은 절대 금지됩니다.\n"
+        "1. **정보 유지 강제**: 'CURRENT_PROFILE_STATE'의 값을 그대로 유지하고, 새로운 메시지에서 파악한 정보만 추가/업데이트하여 `current_profile`에 반영해야 합니다. **이미 채워진 필드는 null로 덮어쓰지 마세요.**\n"
+        "2. **반복 금지**: `current_profile`에 이미 값이 채워진 필드(`style`, `when`, `relation`, `transportation`)는 절대 다시 질문하지 않고 다음 순서로 넘어갑니다.\n"
+        "3. **질문 순서 명세**: 현재 `current_profile` 상태를 확인하고, **채워지지 않은 필드 중 순서상 가장 먼저 오는 질문**만 실행하세요. (순서 1 -> 2 -> 3 -> 4)\n"
+        
+        # 순서 1: Style (RAG 확장)
+        "   - **순서 1 (Style)**: **`style`이 채워지지 않았다면,** '{raw_user_input}' 답변을 바탕으로 RAG 키워드 3개를 확장하여 제시하며 취향을 선택하게 유도하는 질문. (예: '~~ 이러한 여행이 좋으시군요! {키워드1}, {키워드2}, {키워드3} 중 어떤 테마를 가장 선호하시나요?')\n"
+        
+        # 순서 2: When (시기/기간 통합)
+        "   - **순서 2 (When)**: **`when`이 채워지지 않았고, 순서 1이 완료되었다면,** '여행 시기는 언제로 생각하고 계신가요?' (예: 한겨울이나 따뜻한 봄 등과 같이 작성해주세요!)'\n"
+        
+        # 순서 3: Relation
+        "   - **순서 3 (Relation)**: **`relation`이 채워지지 않았고, 순서 2가 완료되었다면,** '여행을 함께 가는 사람들과 관계는 어떻게 되시나요?' (예: 친구, 가족, 연인 등)'\n"
+        
+        # 순서 4: Transportation
+        "   - **순서 4 (Transportation)**: **`transportation`이 채워지지 않았고, 순서 3이 완료되었다면,** '주로 이용할 교통수단은 대중교통인가요, 아니면 자가용/차량인가요?'\n"
+        
+        "3. **답변 파악**: 사용자의 답변에 따라 `current_profile`의 해당 필드를 채우고 다음 순서로 넘어갈 준비를 합니다. **답변이 들어왔다면 해당 필드는 반드시 채워져야 하며, 다른 필드는 그대로 유지되어야 합니다.**\n\n"
         
         "[행동 모드]\n"
         "현재까지 추출된 정보와 사용자 메시지를 기반으로, 다음 중 하나의 모드를 선택하세요.\n"
         
-        "### [QUESTION 모드] (턴이 {MAX_TURNS} 미만일 때만 가능)\n"
-        f"{'FORCE_FINAL_MODE가 True이므로 QUESTION 모드를 선택할 수 없습니다.' if FORCE_FINAL_MODE else ''}\n"
-        "필요한 정보가 남아있고, 질문 횟수가 남아있는 경우 'QUESTION 모드'로 응답하세요.\n"
-        "- **next_question**: 위 질문 우선순위를 따라 질문합니다. 질문은 반드시 1개만, 간결하게 제시하세요.\n"
-        "- **current_profile**: **이전 프로필 ({current_profile})**과 **새로운 메시지**를 바탕으로 최신 정보로 프로필을 업데이트하세요. (모르는 필드는 null/None 유지)\n\n"
+        "### [QUESTION 모드]\n"
+        f"**4가지 질문이 모두 완료되지 않았고** 턴이 {MAX_TURNS} 미만일 경우 'QUESTION 모드'로 응답하며, **현재 채워지지 않은 가장 순서가 빠른 질문**을 제시하세요.\n"
+        "- **next_question**: 위 질문 목록 중 채워지지 않은 필드에 해당하는 질문 1개만 제시하세요.\n"
+        "- **current_profile**: 이전 프로필 ({current_profile_str})의 값을 **모두 유지**하고, **새로운 메시지**를 바탕으로 필요한 정보만 업데이트하세요.\n\n"
         
-        "### [FINAL 모드]\n"
-        f"{'FORCE_FINAL_MODE가 True이거나 핵심 정보가 파악된 경우 FINAL 모드를 선택해야 합니다.' if FORCE_FINAL_MODE else '핵심 정보(style, people, period)가 파악되었다면 FINAL 모드로 전환하세요.'}\n"
-        "**최대 턴을 모두 사용**했거나, **핵심 정보가 파악**되었다면 'FINAL 모드'로 응답하여 최종 추천을 진행하세요.\n"
+        "[FINAL 모드]\n"
+        f"**4가지 질문이 모두 완료**되거나 **최대 턴({MAX_TURNS})을 모두 사용**했다면 'FINAL 모드'로 응답하여 최종 추천을 진행하세요.\n"
         "- **final_response_content**: 이 안에 최종 추천 결과 전체를 [최종 출력 형식]에 맞춰 담으세요.\n\n"
         
         "[최종 출력 형식 - FINAL 모드에서만 사용]\n"
-        # ... (이하 최종 출력 형식 코드는 그대로 유지) ...
-        f"1. 요약 섹션 (자연어)\n"
-        f"\"{{주요 요구사항 요약}}에 맞는 여행을 선호하시는군요! {{요구사항}}을 위해 '{{확장 키워드1}}', '{{확장 키워드2}}'{{(선택) '확장 키워드3'}}로 키워드를 확장했습니다.\n"
-        f"당신에게 꼭 맞는 여행지 {recommend_count}곳을 추천해드립니다.\"\n\n"
-        f"2. 출력(JSON 스키마) - 여행지 정보는 파악된 프로필에 맞춰 가상의 더미 데이터를 생성하세요.\n"
-        f"{{ \"results\": [ {{ \"title\": \"...\", \"reason\": \"...\", \"activity\": \"...\", \"mapping\": \"...\" }}, ... ], \"keywords\": [\"확장 키워드1\", \"확장 키워드2\"] }}\n\n"
-        f"3. 최종 한 줄 안내:\n"
-        f"\"※ 일부 정보는 운영 상황에 따라 변동될 수 있으니 방문 전 최신 안내를 확인해 주세요.\"\n\n"
+        # 1. 요약 및 안내 텍스트 (줄글)
+        "당신은 {style} 스타일을 선호하며, {when}에 {relation}과 {transportation}을 이용하는 여행을 계획 중이시군요. 사용자님의 취향에 맞춰 '{확장 키워드1}', '{확장 키워드2}', '{확장 키워드3}' 키워드를 확장했습니다.\n\n"
+        "당신은 {style} 스타일을 선호하며, {when}과 {relation} 그리고 {transportation}을 이용하는 여행을 계획 중이시군요. 사용자님의 취향에 맞춰 '{확장 키워드1}', '{확장 키워드2}', '{확장 키워드3}' 키워드를 확장했습니다.\n\n"
+        f"이러한 조건에 가장 적합한 소도시 {recommend_count}곳을 추천해 드립니다. 아래 버튼을 선택해 해당 도시의 상세 정보를 확인해 보세요.\n"
+        
+        # 2. 추천 도시 블록 (프론트엔드가 파싱해야 함)
+        "---RECOMMENDATION---\n"
+        "**title**: {소도시 이름 1}\n"
+        "**description**: {소도시에 대한 간결한 설명, 왜 적합한지 포함}\n"
+        "---RECOMMENDATION---\n"
+        "**title**: {소도시 이름 2}\n"
+        "**description**: {소도시에 대한 간결한 설명, 왜 적합한지 포함}\n"
+        "---RECOMMENDATION---\n"
+        "**title**: {소도시 이름 3}\n"
+        "**description**: {소도시에 대한 간결한 설명, 왜 적합한지 포함}\n"
+        
+        # 3. 최종 안내 텍스트 (줄글)
+        "\n※ 일부 정보는 운영 상황에 따라 변동될 수 있으니 방문 전 최신 안내를 확인해 주세요.\n\n"
         
         "[JSON 출력 스키마 - 반드시 이 스키마를 준수하여 출력하세요]\n"
         "```json\n"
         "{\n"
         f"  \"status\": \"<QUESTION 또는 FINAL>\",\n"
         f"  \"current_profile\": {{\n"
-        f"    \"relation\": \"<파악된 값 또는 null>\",\n"
-        f"    \"people\": \"<파악된 값 또는 null>\",\n"
-        f"    \"when\": \"<파악된 값 또는 null>\",\n"
-        f"    \"period\": \"<파악된 값 또는 null>\",\n"
-        f"    \"transportation\": \"<파악된 값 또는 null>\",\n"
         f"    \"style\": \"<파악된 값 또는 null>\",\n"
-        f"    \"budget\": \"<파악된 값 또는 null>\",\n"
-        f"    \"age\": \"<파악된 값 또는 null>\"\n"
+        f"    \"when\": \"<파악된 값 또는 null>\",\n"
+        f"    \"relation\": \"<파악된 값 또는 null>\",\n"
+        f"    \"transportation\": \"<파악된 값 또는 null>\",\n"
+        "    \"age\": \"<파악된 값 또는 null>\"\n"
         f"  }},\n"
-        f"  \"turn_count\": {turn_count},\n" # 새로운 턴 카운트 포함
+        f"  \"turn_count\": {turn_count},\n"
         "  \"next_question\": \"<status가 QUESTION일 때만 다음 질문>\",\n"
         "  \"final_response_content\": \"<status가 FINAL일 때만 최종 추천 전체 텍스트>\"\n"
         "}\n"
@@ -208,22 +235,32 @@ async def get_chatbot_search_keywords_and_recommendations(user_message: str):
             response_format={"type": "json_object"} 
         )
         
-        # ... (이하 GPT 응답 파싱 및 상태 확인 로직은 그대로 유지) ...
         raw_ai_content = response.choices[0].message.content
+        
+        print(f"--- OpenAI RAW Content Start ---")
+        print(raw_ai_content)
+        print(f"--- OpenAI RAW Content End ---")
         
         try:
             ai_response_json: Dict[str, Any] = json.loads(raw_ai_content)
         except JSONDecodeError:
              raise HTTPException(
                 status_code=500, 
-                detail="AI가 유효하지 않은 JSON 형식을 반환했습니다."
+                detail=f"AI가 유효하지 않은 JSON 형식을 반환했습니다. Raw Content (첫 100자): {raw_ai_content[:100]}..."
             )
             
         status = ai_response_json.get("status")
         
         # FINAL 모드 처리 (로직 동일)
         if status == "FINAL":
-            final_text_raw = ai_response_json.get("final_response_content", "")
+            final_text_raw = ai_response_json.get("final_response_content")
+            if not final_text_raw:
+                final_text_raw = (
+                    "1. 요약(1~2문장):\n최종 추천 내용을 생성하는 데 실패했지만, 다음 추천 목록을 준비했습니다.\n\n"
+                    "2. 출력(JSON 스키마)\n"
+                    '{"results": []}\n\n'
+                    "3. 최종 한 줄 안내:\n추천에 실패했습니다. 다시 시도해 주세요."
+                )
             parsed_result = parse_final_response(final_text_raw)
 
             return {

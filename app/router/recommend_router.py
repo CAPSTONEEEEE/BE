@@ -35,7 +35,15 @@ async def chatbot_endpoint(request: ChatbotRequest):
             recommendations=result["db_recommendations"] # DB 검색 결과(TourInfoOut 리스트)
         )
     except HTTPException as e:
+        # 이미 처리된 HTTP 예외는 그대로 raise
         raise e
+    except Exception as e:
+        # ⚠️ 예상치 못한 일반 예외(OpenAI 통신 오류 등) 발생 시 500 처리
+        print(f"챗봇 라우터 내부 오류: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"챗봇 서비스 처리 중 알 수 없는 서버 오류가 발생했습니다. 상세: {e.__class__.__name__}"
+        )
 
 # 랜덤 추천 엔드포인트
 @router.post("/random_recommendations", summary="랜덤 여행지 추천", response_model=RandomRecommendResponse)
