@@ -1,310 +1,274 @@
-# app/services/recommend_service.py (수정)
+# app/services/recommend_service.py
 
 from __future__ import annotations
 import os
 import json
+import traceback
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from fastapi import HTTPException
-from json import JSONDecodeError 
 
-# =========================
-# AI 클라이언트 초기화 (함수 외부 - 전역 스코프)
-# =========================
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from app.models.recommend_models import RecommendTourInfo, TourInfoOut
 
-# 1. 전역 변수 초기 선언: NameError를 방지하기 위해 먼저 None으로 할당
+# --- OpenAI 클라이언트 초기화 ---
 openai_client = None 
-
 try:
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    
     if openai_api_key:
-        # 2. 환경 변수가 있을 때만 클라이언트 객체 할당
         openai_client = AsyncOpenAI(api_key=openai_api_key)
-        print("OpenAI 클라이언트 초기화 성공.")
     else:
-        # API 키가 없는 경우 None을 유지하며 경고 출력
-        print("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다. AI 서비스가 비활성화됩니다.")
-        
+        print("OPENAI_API_KEY가 없습니다.")
 except Exception as e:
     print(f"Error initializing OpenAI client: {e}")
-    # 예외 발생 시 None 유지 (이미 초기화됨)
 
-# =========================
-# 헬퍼 함수: 최종 응답 파싱
-# =========================
-def parse_final_response(content: str) -> Dict[str, Any]:
-    """
-    AI가 생성한 최종 응답 텍스트에서 자연어 부분과 JSON 부분을 분리하여 반환합니다.
-    (사용자 지정 출력 형식에 맞춰 파싱)
-    """
-    JSON_HEADER = "2. 출력(JSON 스키마)"
-    DISCLAIMER_HEADER = "3. 최종 한 줄 안내:"
-    
-    response_text = content
-    recommendations = []
-    
-    try:
-        # 1. JSON 블록의 경계 찾기
-        json_header_index = content.find(JSON_HEADER)
-        disclaimer_header_index = content.find(DISCLAIMER_HEADER)
-        
-        if json_header_index == -1 or disclaimer_header_index == -1:
-            # 마커가 없는 경우, 전체를 자연어 텍스트로 반환하고 구조화된 데이터는 포기
-            return {"response_text": content, "recommendations": []}
-            
-        # 2. Raw JSON 문자열 후보 추출
-        # JSON HEADER 이후부터 DISCLAIMER HEADER 전까지
-        json_start = json_header_index + len(JSON_HEADER)
-        json_string_candidate = content[json_start:disclaimer_header_index].strip()
-        
-        # 3. JSON 문자열 정리 및 추출 (첫 '{'부터 마지막 '}'까지)
-        start_brace = json_string_candidate.find('{')
-        end_brace = json_string_candidate.rfind('}')
-        
-        if start_brace == -1 or end_brace == -1:
-             return {"response_text": content, "recommendations": []}
-
-        json_string_clean = json_string_candidate[start_brace : end_brace + 1].strip()
-        
-        if json_string_clean.startswith('```json') and json_string_clean.endswith('```'):
-             json_string_clean = json_string_clean.strip('`json').strip('`').strip()
-        elif json_string_clean.startswith('{') and json_string_clean.endswith('}'):
-            pass
-        else:
-             print(f"Warning: JSON candidate started with unexpected format: {json_string_clean[:50]}")
-        
-        # 4. JSON 파싱
-        json_data = json.loads(json_string_clean)
-        recommendations = json_data.get("results", [])
-        
-        # 5. 최종 자연어 텍스트 부분 조합
-        # 텍스트 = 요약 부분 + 최종 안내 부분
-        
-        # JSON HEADER 전까지 (요약 섹션)
-        summary_text = content[:json_start].strip()
-        # 최종 안내 부분
-        disclaimer_text = content[disclaimer_header_index:].strip()
-
-        # 최종적으로 사용자에게 보여줄 자연어 텍스트
-        response_text = f"{summary_text}\n\n{disclaimer_text}"
-
-        return {
-            "response_text": response_text, 
-            "recommendations": recommendations,
-        }
-
-    except JSONDecodeError:
-        print(f"Inner JSON parsing failed for: {json_string_clean[:100]}...")
-        # 파싱 실패 시, 전체 Raw Content를 텍스트로 반환
-        return {"response_text": content, "recommendations": []}
-    except Exception as e:
-        print(f"Error during final response parsing: {e}")
-        return {"response_text": content, "recommendations": []}
-
-
-# =========================
-# 핵심 AI 추천 서비스 로직
-# =========================
-async def get_chatbot_search_keywords_and_recommendations(user_message: str):
+# =========================================================
+# 1. [핵심] RAG 검증 및 추천 로직
+# =========================================================
+async def get_chatbot_search_keywords_and_recommendations(user_message: str, db: Session):
     if not openai_client:
-        raise HTTPException(status_code=503, detail="AI 서비스 연결에 문제가 있습니다.")
+        raise HTTPException(status_code=503, detail="AI 서비스 연결 불가")
     
-    # --- [NEW] 턴 카운트 및 프로필 추출 로직 (프론트엔드 통신 가정) ---
-    current_profile = {}
-    turn_count = 0
-    raw_user_input = user_message # API 요청이 단순 문자열일 경우를 대비하여 저장
-    
-    # ⚠️ NOTE: 클라이언트가 JSON 형태로 {message, profile, count}를 보낸다고 가정하고 파싱
+    # 1. 입력 데이터 파싱
     try:
-        # 1. user_message가 JSON 문자열 형태로 왔을 경우 파싱
         input_data = json.loads(user_message)
-        raw_user_input = input_data.get("message", user_message)
+        raw_msg = input_data.get("message", user_message)
+        # 프론트에서 보내주는 current_profile과 turn_count 받기
         current_profile = input_data.get("current_profile", {})
         turn_count = input_data.get("turn_count", 0)
-        
-    except (JSONDecodeError, AttributeError):
-        # 2. JSON이 아니거나 초기 요청일 경우, 턴 카운트 0, 프로필 빈 값으로 시작
-        pass
-    
-    # 3. 최대 턴 제한 상수 설정
-    MAX_TURNS = 5 # 초기 질문 (턴 0) + 심화 질문 4회 = 총 5턴
-    
-    # 4. 턴 카운트 증가 (현재 요청은 새로운 턴이므로 +1)
-    turn_count += 1 
-    
-    # 5. 최대 턴을 초과했거나 임박했을 경우 모드 강제
-    FORCE_FINAL_MODE = turn_count >= MAX_TURNS
+    except:
+        raw_msg = user_message
+        current_profile = {}
+        turn_count = 0
 
-    # -------------------------------------------------------------
+    # 턴 증가 (초기값 보정)
+    if turn_count == 0:
+        # 첫 진입 시 초기화
+        current_profile = {
+            "style": None,    # 여행 스타일 (힐링, 액티비티 등)
+            "who": None,      # 동행 (가족, 친구, 혼자)
+            "when": None,     # 시기 (이번 주말, 가을 등)
+            "transport": None # 교통 (자차, 뚜벅이)
+        }
+    
+    turn_count += 1
+    MAX_TURNS = 5  # 최대 질문 횟수
 
-    profile_fields = ["style", "when", "relation", "transportation"] 
-    recommend_count = 3
-    
-    # ⭐️ [NEW] 현재 프로필 상태를 프롬프트에 직접 삽입하여 AI가 잊지 않도록 강제 ⭐️
-    current_profile_str = json.dumps(current_profile, ensure_ascii=False)
-    
-    system_prompt = (
-        f"[역할]\n당신은 한국의 소도시 여행 큐레이션 전문가 '소소행'입니다. 사용자에게 **정확히 4가지 질문**을 순서대로 제시하여 정보를 수집합니다. (총 5턴: 초기 질문 + 4회 심화 질문, **절대 이를 초과하지 말 것.**)\n"
-        f"현재 대화 턴은 {turn_count}/{MAX_TURNS} 입니다.\n"
-        f"당신이 관리하는 프로필 필드는 {', '.join(profile_fields)} 입니다.\n\n"
-        f"### 이전까지 파악된 프로필 상태 (절대 초기화 금지) ###\n"
-        f"CURRENT_PROFILE_STATE: {current_profile_str}\n"
-        f"####################################################\n\n"
-        
-        "[정보 파악 규칙] - AI는 이 규칙을 **철저하게 지켜야** 합니다. 질문 순서 위반은 절대 금지됩니다.\n"
-        "1. **정보 유지 강제**: 'CURRENT_PROFILE_STATE'의 값을 그대로 유지하고, 새로운 메시지에서 파악한 정보만 추가/업데이트하여 `current_profile`에 반영해야 합니다. **이미 채워진 필드는 null로 덮어쓰지 마세요.**\n"
-        "2. **반복 금지**: `current_profile`에 이미 값이 채워진 필드(`style`, `when`, `relation`, `transportation`)는 절대 다시 질문하지 않고 다음 순서로 넘어갑니다.\n"
-        "3. **질문 순서 명세**: 현재 `current_profile` 상태를 확인하고, **채워지지 않은 필드 중 순서상 가장 먼저 오는 질문**만 실행하세요. (순서 1 -> 2 -> 3 -> 4)\n"
-        
-        # 순서 1: Style (RAG 확장)
-        "   - **순서 1 (Style)**: **`style`이 채워지지 않았다면,** '{raw_user_input}' 답변을 바탕으로 RAG 키워드 3개를 확장하여 제시하며 취향을 선택하게 유도하는 질문. (예: '~~ 이러한 여행이 좋으시군요! {키워드1}, {키워드2}, {키워드3} 중 어떤 테마를 가장 선호하시나요?')\n"
-        
-        # 순서 2: When (시기/기간 통합)
-        "   - **순서 2 (When)**: **`when`이 채워지지 않았고, 순서 1이 완료되었다면,** '여행 시기는 언제로 생각하고 계신가요?' (예: 한겨울이나 따뜻한 봄 등과 같이 작성해주세요!)'\n"
-        
-        # 순서 3: Relation
-        "   - **순서 3 (Relation)**: **`relation`이 채워지지 않았고, 순서 2가 완료되었다면,** '여행을 함께 가는 사람들과 관계는 어떻게 되시나요?' (예: 친구, 가족, 연인 등)'\n"
-        
-        # 순서 4: Transportation
-        "   - **순서 4 (Transportation)**: **`transportation`이 채워지지 않았고, 순서 3이 완료되었다면,** '주로 이용할 교통수단은 대중교통인가요, 아니면 자가용/차량인가요?'\n"
-        
-        "3. **답변 파악**: 사용자의 답변에 따라 `current_profile`의 해당 필드를 채우고 다음 순서로 넘어갈 준비를 합니다. **답변이 들어왔다면 해당 필드는 반드시 채워져야 하며, 다른 필드는 그대로 유지되어야 합니다.**\n\n"
-        
-        "[행동 모드]\n"
-        "현재까지 추출된 정보와 사용자 메시지를 기반으로, 다음 중 하나의 모드를 선택하세요.\n"
-        
-        "### [QUESTION 모드]\n"
-        f"**4가지 질문이 모두 완료되지 않았고** 턴이 {MAX_TURNS} 미만일 경우 'QUESTION 모드'로 응답하며, **현재 채워지지 않은 가장 순서가 빠른 질문**을 제시하세요.\n"
-        "- **next_question**: 위 질문 목록 중 채워지지 않은 필드에 해당하는 질문 1개만 제시하세요.\n"
-        "- **current_profile**: 이전 프로필 ({current_profile_str})의 값을 **모두 유지**하고, **새로운 메시지**를 바탕으로 필요한 정보만 업데이트하세요.\n\n"
-        
-        "[FINAL 모드]\n"
-        f"**4가지 질문이 모두 완료**되거나 **최대 턴({MAX_TURNS})을 모두 사용**했다면 'FINAL 모드'로 응답하여 최종 추천을 진행하세요.\n"
-        "- **final_response_content**: 이 안에 최종 추천 결과 전체를 [최종 출력 형식]에 맞춰 담으세요.\n\n"
-        
-        "[최종 출력 형식 - FINAL 모드에서만 사용]\n"
-        # 1. 요약 및 안내 텍스트 (줄글)
-        "당신은 {style} 스타일을 선호하며, {when}에 {relation}과 {transportation}을 이용하는 여행을 계획 중이시군요. 사용자님의 취향에 맞춰 '{확장 키워드1}', '{확장 키워드2}', '{확장 키워드3}' 키워드를 확장했습니다.\n\n"
-        "당신은 {style} 스타일을 선호하며, {when}과 {relation} 그리고 {transportation}을 이용하는 여행을 계획 중이시군요. 사용자님의 취향에 맞춰 '{확장 키워드1}', '{확장 키워드2}', '{확장 키워드3}' 키워드를 확장했습니다.\n\n"
-        f"이러한 조건에 가장 적합한 소도시 {recommend_count}곳을 추천해 드립니다. 아래 버튼을 선택해 해당 도시의 상세 정보를 확인해 보세요.\n"
-        
-        # 2. 추천 도시 블록 (프론트엔드가 파싱해야 함)
-        "---RECOMMENDATION---\n"
-        "**title**: {소도시 이름 1}\n"
-        "**description**: {소도시에 대한 간결한 설명, 왜 적합한지 포함}\n"
-        "---RECOMMENDATION---\n"
-        "**title**: {소도시 이름 2}\n"
-        "**description**: {소도시에 대한 간결한 설명, 왜 적합한지 포함}\n"
-        "---RECOMMENDATION---\n"
-        "**title**: {소도시 이름 3}\n"
-        "**description**: {소도시에 대한 간결한 설명, 왜 적합한지 포함}\n"
-        
-        # 3. 최종 안내 텍스트 (줄글)
-        "\n※ 일부 정보는 운영 상황에 따라 변동될 수 있으니 방문 전 최신 안내를 확인해 주세요.\n\n"
-        
-        "[JSON 출력 스키마 - 반드시 이 스키마를 준수하여 출력하세요]\n"
-        "```json\n"
-        "{\n"
-        f"  \"status\": \"<QUESTION 또는 FINAL>\",\n"
-        f"  \"current_profile\": {{\n"
-        f"    \"style\": \"<파악된 값 또는 null>\",\n"
-        f"    \"when\": \"<파악된 값 또는 null>\",\n"
-        f"    \"relation\": \"<파악된 값 또는 null>\",\n"
-        f"    \"transportation\": \"<파악된 값 또는 null>\",\n"
-        "    \"age\": \"<파악된 값 또는 null>\"\n"
-        f"  }},\n"
-        f"  \"turn_count\": {turn_count},\n"
-        "  \"next_question\": \"<status가 QUESTION일 때만 다음 질문>\",\n"
-        "  \"final_response_content\": \"<status가 FINAL일 때만 최종 추천 전체 텍스트>\"\n"
-        "}\n"
-        "```"
-    )
+    print(f"🔄 Turn: {turn_count}, Input: {raw_msg}")
+    print(f"📊 Current Profile: {current_profile}")
 
     try:
-        # 1. GPT API 호출 (JSON 응답 강제)
-        response = await openai_client.chat.completions.create(
-            model="gpt-4o-mini", 
+        # -----------------------------------------------------
+        # Step 1: Router & Interviewer (정보 수집 및 키워드 확장)
+        # -----------------------------------------------------
+        
+        # 시스템 프롬프트: 상태 관리자 역할
+        system_prompt_router = f"""
+        [Role]
+        당신은 소도시 여행 전문가 '소소행'입니다. 
+        사용자와 대화하며 [필수 정보]를 수집하여 {MAX_TURNS}턴 안에 최적의 여행지를 추천해야 합니다.
+
+        [Target Profile Schema]
+        - style: (예: 힐링, 액티비티, 호캉스, 맛집탐방)
+        - who: (예: 혼자, 연인, 가족, 친구)
+        - when: (예: 이번 주말, 여름 휴가, 10월)
+        - transport: (예: 대중교통, 자차)
+
+        [Current Status]
+        - 현재 턴: {turn_count} / {MAX_TURNS}
+        - 현재 수집된 정보: {json.dumps(current_profile, ensure_ascii=False)}
+
+        [Task Rules]
+        1. 사용자의 입력('{raw_msg}')을 분석하여 [Current Status]의 비어있는(null) 필드를 채우십시오.
+        2. 만약 'style'이 모호하다면(예: "그냥 좋은 곳"), 구체적인 키워드 3가지를 제안하여 선택하게 하십시오.
+        3. [필수 정보]가 모두 채워졌거나, 현재 턴이 {MAX_TURNS}에 도달했다면 즉시 'SEARCH_REQ' 상태로 전환하십시오.
+        4. 아직 정보가 부족하다면 'QUESTION' 상태를 유지하고, **비어있는 항목 중 하나**에 대해 자연스럽게 질문하십시오. (한 번에 하나만 질문)
+
+        [Output Format (JSON Only)]
+        반드시 아래 JSON 형식으로만 응답하십시오.
+        {{
+            "status": "QUESTION" | "SEARCH_REQ",
+            "updated_profile": {{ ...업데이트된 프로필... }},
+            "next_question": "사용자에게 할 다음 질문 (status가 QUESTION일 때)",
+            "search_keywords": ["키워드1", "키워드2", "지역명(선택)"] (status가 SEARCH_REQ일 때),
+            "reasoning": "왜 이 상태를 선택했는지 설명"
+        }}
+        """
+
+        response_router = await openai_client.chat.completions.create(
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": system_prompt},
-                # AI에게는 사용자의 실제 답변만 전달
-                {"role": "user", "content": raw_user_input} 
+                {"role": "system", "content": system_prompt_router},
+                {"role": "user", "content": raw_msg}
             ],
             temperature=0.7,
-            response_format={"type": "json_object"} 
+            response_format={"type": "json_object"}
         )
         
-        raw_ai_content = response.choices[0].message.content
-        
-        print(f"--- OpenAI RAW Content Start ---")
-        print(raw_ai_content)
-        print(f"--- OpenAI RAW Content End ---")
-        
         try:
-            ai_response_json: Dict[str, Any] = json.loads(raw_ai_content)
-        except JSONDecodeError:
-             raise HTTPException(
-                status_code=500, 
-                detail=f"AI가 유효하지 않은 JSON 형식을 반환했습니다. Raw Content (첫 100자): {raw_ai_content[:100]}..."
-            )
-            
-        status = ai_response_json.get("status")
-        
-        # FINAL 모드 처리 (로직 동일)
-        if status == "FINAL":
-            final_text_raw = ai_response_json.get("final_response_content")
-            if not final_text_raw:
-                final_text_raw = (
-                    "1. 요약(1~2문장):\n최종 추천 내용을 생성하는 데 실패했지만, 다음 추천 목록을 준비했습니다.\n\n"
-                    "2. 출력(JSON 스키마)\n"
-                    '{"results": []}\n\n'
-                    "3. 최종 한 줄 안내:\n추천에 실패했습니다. 다시 시도해 주세요."
-                )
-            parsed_result = parse_final_response(final_text_raw)
-
+            router_res = json.loads(response_router.choices[0].message.content)
+        except json.JSONDecodeError:
+            # AI가 JSON을 잘못 뱉었을 경우 예외 처리
+            print("❌ AI JSON Parsing Error")
             return {
-                "ai_response_text": parsed_result["response_text"], 
-                "db_recommendations": parsed_result["recommendations"]
-            }
-        
-        # QUESTION 모드 처리
-        elif status == "QUESTION":
-            question_text = ai_response_json.get("next_question", "죄송합니다. 다음 질문을 생성하는 데 실패했습니다.")
-            
-            # ⚠️ NOTE: 턴 카운트와 프로필을 포함하여 클라이언트가 다음 요청에 사용할 수 있도록 응답해야 합니다.
-            # 현재 ChatRecommendResponse 스키마가 이를 지원하지 않으므로, 
-            # 다음 질문과 함께 새로운 프로필 정보를 포함한 JSON을 텍스트로 반환하는 임시 조치를 취합니다.
-            
-            # 클라이언트가 파싱하기 쉽도록 응답 텍스트를 구조화합니다.
-            new_profile = ai_response_json.get("current_profile", {})
-            
-            # 클라이언트가 다음 요청에 보낼 JSON 구조
-            next_request_data = {
-                "next_question": question_text,
-                "current_profile": new_profile,
-                "turn_count": turn_count
-            }
-            
-            # JSON을 문자열로 직렬화하여 클라이언트에 전달 (프론트엔드에서 파싱해야 함)
-            # 클라이언트가 이 JSON을 파싱하여 다음 요청의 'current_profile'과 'turn_count'로 사용해야 합니다.
-            formatted_response = (
-                f"{question_text}\n\n"
-                f"---PROFILE_UPDATE---\n"
-                f"{json.dumps(next_request_data, ensure_ascii=False)}\n"
-                f"---END_PROFILE---"
-            )
-            
-            return {
-                "ai_response_text": formatted_response,
+                "ai_response_text": "잠시 시스템 통신에 문제가 생겼습니다. 다시 한 번 말씀해 주시겠어요?",
                 "db_recommendations": []
             }
 
-        else:
-            raise HTTPException(status_code=500, detail=f"AI가 알 수 없는 상태(status: {status})를 반환했습니다.")
+        status = router_res.get("status")
+        updated_profile = router_res.get("updated_profile", current_profile)
 
-    except HTTPException:
-        raise
+        # -----------------------------------------------------
+        # CASE A: 아직 질문이 더 필요함 (QUESTION)
+        # -----------------------------------------------------
+        if status == "QUESTION":
+            next_q = router_res.get("next_question")
+            
+            # 클라이언트 상태 업데이트용 데이터 패키징
+            next_request_data = {
+                "next_question": next_q,
+                "current_profile": updated_profile,
+                "turn_count": turn_count
+            }
+            
+            # ---PROFILE_UPDATE--- 마커를 포함하여 일반 텍스트로 반환
+            return {
+                "ai_response_text": f"{next_q}\n\n---PROFILE_UPDATE---\n{json.dumps(next_request_data, ensure_ascii=False)}\n---END_PROFILE---",
+                "db_recommendations": []
+            }
+
+        # -----------------------------------------------------
+        # CASE B: 검색 요청 (SEARCH_REQ)
+        # -----------------------------------------------------
+        elif status == "SEARCH_REQ":
+            keywords = router_res.get("search_keywords", [])
+            print(f"🔎 AI 추출 검색 키워드: {keywords}")
+
+            # 1. DB 검색 (검증)
+            found_spots = search_spots_in_db(db, keywords)
+
+            # 2. 검색 결과가 없을 경우 (유연한 대처)
+            if not found_spots:
+                # 검색 결과가 없으면, 키워드를 조금 더 일반적인 것으로 바꿔서 재질문 유도
+                print("⚠️ DB 검색 결과 0건")
+                fallback_msg = "원하시는 조건에 딱 맞는 소도시 정보를 찾기가 어렵네요. 😭\n조건을 조금만 넓혀서(예: '전라도 전체' 또는 '자연 힐링') 다시 추천해 드릴까요?"
+                
+                # 프로필은 유지하되, 턴 수는 유지하거나 리셋
+                next_request_data = {
+                    "next_question": fallback_msg,
+                    "current_profile": updated_profile, 
+                    "turn_count": turn_count - 1 # 기회 한 번 더 줌
+                }
+                return {
+                     "ai_response_text": f"{fallback_msg}\n\n---PROFILE_UPDATE---\n{json.dumps(next_request_data, ensure_ascii=False)}\n---END_PROFILE---",
+                    "db_recommendations": []
+                }
+
+            # 3. 최종 추천 멘트 생성 (검색된 데이터 기반)
+            final_response = await generate_final_recommendation(found_spots, updated_profile)
+            
+            return final_response
+
     except Exception as e:
-        print(f"AI 추천 처리 중 예상치 못한 오류 발생: {e}")
-        raise HTTPException(status_code=500, detail="AI 추천 처리 중 서버 오류가 발생했습니다.")
+        print(f"🔥 Critical Error in Recommend Service: {e}")
+        traceback.print_exc() # 로그에 상세 에러 출력
+        return {
+            "ai_response_text": "죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해 주세요.",
+            "db_recommendations": []
+        }
+
+# =========================================================
+# Helper: DB 검색 함수 (키워드 기반 LIKE 검색 + 소도시 필터)
+# =========================================================
+def search_spots_in_db(db: Session, keywords: List[str]) -> List[TourInfoOut]:
+    
+    # 1. 소도시 정의: 대도시 제외
+    exclude_cities = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "제주"]
+    
+    query = db.query(RecommendTourInfo)
+    
+    # 대도시 제외 필터 적용
+    for city in exclude_cities:
+        # addr1에 '서울' 등이 포함되지 않은 곳만 조회
+        query = query.filter(RecommendTourInfo.addr1.notlike(f"%{city}%"))
+
+    # 2. 키워드 검색 (OR 조건)
+    # keywords 중 하나라도 포함되면 결과에 포함
+    conditions = []
+    for kw in keywords:
+        kw = kw.strip()
+        if len(kw) < 2: continue # 1글자 키워드는 무시 (너무 광범위)
+        
+        conditions.append(RecommendTourInfo.title.like(f"%{kw}%"))
+        conditions.append(RecommendTourInfo.addr1.like(f"%{kw}%"))
+        # 필요한 경우 cat1, cat2 등도 검색
+        
+    if conditions:
+        query = query.filter(or_(*conditions))
+    
+    # 3. 결과 제한 (너무 많으면 AI 토큰 초과)
+    # 랜덤 정렬을 원하면 func.random() 사용 가능 (DB 종류에 따라 다름)
+    results = query.limit(5).all()
+    
+    # Pydantic 모델로 변환
+    return [TourInfoOut.model_validate(item) for item in results]
+
+
+# =========================================================
+# Helper: 최종 생성 함수 (Generation)
+# =========================================================
+async def generate_final_recommendation(spots: List[TourInfoOut], profile: Dict):
+    
+    # DB 객체를 JSON으로 직렬화 (AI에게 Context로 주기 위함)
+    spots_context = json.dumps([s.model_dump() for s in spots], ensure_ascii=False)
+    
+    system_prompt_final = f"""
+    [Role]
+    당신은 소도시 여행 전문가입니다. 
+    사용자 프로필: {json.dumps(profile, ensure_ascii=False)}
+    
+    [Mission]
+    아래 [Context Data]에 있는 여행지 중 3곳을 선정하여 추천 리스트를 작성하십시오.
+    
+    [Context Data (Real DB Data)]
+    {spots_context}
+
+    [Strict Rules]
+    1. **절대 없는 장소를 지어내지 마십시오.** 오직 위 데이터에 있는 것만 추천하세요.
+    2. 출력 형식은 반드시 아래 JSON 포맷을 따르십시오.
+    
+    [Output JSON Format]
+    {{
+        "final_response_content": "여기에 전체 답변 내용을 작성하세요. \\n\\n 규칙: \\n 1. 요약: 사용자 취향({profile.get('style')})에 맞는 여행지를 골랐다는 멘트. \\n 2. 추천 이유: 각 장소를 추천하는 이유를 감성적으로 서술. \\n 3. 마무리: 즐거운 여행 되시라는 인사. \\n\\n ※모든 내용은 줄글로 자연스럽게 작성하며, 별도 마크다운 테이블은 쓰지 마세요."
+    }}
+    """
+
+    response = await openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "system", "content": system_prompt_final}],
+        temperature=0.7,
+        response_format={"type": "json_object"}
+    )
+    
+    try:
+        res_json = json.loads(response.choices[0].message.content)
+        final_text = res_json.get("final_response_content", "")
+        
+        # ⚠️ 프론트엔드 오류(undefined) 방지를 위해 강제로 footer 추가
+        # 프론트 파서가 \n※ 또는 ---RECOMMENDATION--- 등을 찾으므로 맞춰줌
+        if "※" not in final_text:
+            final_text += "\n\n※ 일부 정보는 운영 상황에 따라 변동될 수 있으니 방문 전 최신 안내를 확인해 주세요."
+
+        return {
+            "ai_response_text": final_text, 
+            "db_recommendations": spots[:3] # 상위 3개만 프론트로 전달 (버튼 표시용)
+        }
+        
+    except Exception as e:
+        print(f"Final Generation Error: {e}")
+        return {
+             "ai_response_text": "추천 결과를 생성하는 중 문제가 발생했습니다. 검색된 여행지 목록을 아래에서 확인해주세요.",
+             "db_recommendations": spots[:3]
+        }
