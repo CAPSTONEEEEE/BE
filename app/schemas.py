@@ -288,4 +288,4 @@ class FavoriteItemOut(BaseModel):
 class FavoriteListResponse(BaseModel):
     festivals: List[FavoriteItemOut] = Field([], description="찜한 축제 목록")
     products: List[FavoriteItemOut] = Field([], description="찜한 마켓 상품 목록")
-    spots: List[List[FavoriteItemOut]] = Field([], description="찜한 추천 여행지 목록")
+    spots: List[FavoriteItemOut] = Field([], description="찜한 추천 여행지 목록")
