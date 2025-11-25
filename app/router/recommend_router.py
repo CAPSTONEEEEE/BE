@@ -12,10 +12,11 @@ from app.schemas import (
 )
 
 from app.services.recommend_service import (
-    get_chatbot_search_keywords_and_recommendations
+    get_chatbot_search_keywords_and_recommendations,
+    get_nearby_spots,
+    get_spot_detail
 )
 
-# [수정] DB 세션 의존성 주입을 위해 get_db 임포트
 from app.db.database import get_db 
 
 # 2. APIRouter 인스턴스 정의
@@ -74,3 +75,24 @@ def get_random_recommendations(request: RandomRecommendRequest):
             message="랜덤 추천 기능 준비 중",
             recommendations=[]
         )
+         
+
+# 1. [페이지 1용] 주변 관광지 리스트 조회
+@router.get("/nearby/{contentid}", summary="반경 20km 주변 관광지 조회")
+def get_nearby_places(contentid: str, db: Session = Depends(get_db)):
+    try:
+        result = get_nearby_spots(contentid, db)
+        if not result["target"]:
+            raise HTTPException(status_code=404, detail="해당 여행지를 찾을 수 없습니다.")
+        return result
+    except Exception as e:
+        print(f"Error fetching nearby spots: {e}")
+        raise HTTPException(status_code=500, detail="주변 관광지 조회 실패")
+
+# 2. [페이지 2용] 특정 관광지 상세 정보 조회
+@router.get("/detail/{contentid}", summary="특정 관광지 상세 정보 조회")
+def get_place_detail(contentid: str, db: Session = Depends(get_db)):
+    spot = get_spot_detail(contentid, db)
+    if not spot:
+        raise HTTPException(status_code=404, detail="여행지 정보를 찾을 수 없습니다.")
+    return spot
