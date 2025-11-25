@@ -292,3 +292,71 @@ async def generate_final_recommendation(spots: List[TourInfoOut], profile: Dict)
              "ai_response_text": "추천 결과를 불러오는 중 문제가 발생했습니다.",
              "db_recommendations": spots # 기본 데이터라도 반환
         }
+        
+# =========================================================
+# 여행지 상세정보 관련
+# =========================================================     
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    두 지점(위도/경도) 사이의 거리를 계산 (단위: km)
+    """
+    if lon1 is None or lat1 is None or lon2 is None or lat2 is None:
+        return 99999 # 거리 계산 불가 시 큰 값 반환
+
+    # 10진수 -> 라디안 변환
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # Haversine 공식
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371 # 지구 반지름 (km)
+    return c * r
+
+def get_nearby_spots(contentid: str, db: Session, limit_km: float = 20.0) -> Dict[str, Any]:
+    """
+    특정 contentid의 좌표를 기준으로 반경 20km 이내의 여행지를 찾습니다.
+    """
+    # 1. 기준이 되는 여행지 정보 조회
+    target_spot = db.query(RecommendTourInfo).filter(RecommendTourInfo.contentid == contentid).first()
+    
+    if not target_spot:
+        return {"target": None, "nearby_spots": []}
+
+    target_x = target_spot.mapx # 경도
+    target_y = target_spot.mapy # 위도
+
+    # 2. 전체 여행지 조회 (최적화: 실제 서비스엔 Bounding Box 1차 필터링 권장하지만, 현재 데이터량에선 Python 루프도 가능)
+    # 여기서는 간단히 모든 데이터를 가져와서 계산합니다. 
+    # (데이터가 수만 건이라면 DB단에서 ST_Distance_Sphere 등을 쓰는게 좋음)
+    all_spots = db.query(RecommendTourInfo).filter(
+        RecommendTourInfo.contentid != contentid, # 자기 자신 제외
+        RecommendTourInfo.mapx.isnot(None),
+        RecommendTourInfo.mapy.isnot(None)
+    ).all()
+
+    nearby_list = []
+    
+    for spot in all_spots:
+        dist = haversine(target_x, target_y, spot.mapx, spot.mapy)
+        if dist <= limit_km:
+            # 거리 정보를 포함하기 위해 dict로 변환
+            spot_data = TourInfoOut.model_validate(spot).model_dump()
+            spot_data['distance'] = round(dist, 2) # 거리(km) 필드 추가
+            nearby_list.append(spot_data)
+    
+    # 3. 거리순 정렬
+    nearby_list.sort(key=lambda x: x['distance'])
+
+    return {
+        "target": TourInfoOut.model_validate(target_spot),
+        "nearby_spots": nearby_list
+    }
+
+# 최종 상세 정보 조회 (페이지 2용)
+def get_spot_detail(contentid: str, db: Session):
+    spot = db.query(RecommendTourInfo).filter(RecommendTourInfo.contentid == contentid).first()
+    if not spot:
+        return None
+    return TourInfoOut.model_validate(spot)
