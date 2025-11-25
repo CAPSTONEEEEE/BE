@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.models.recommend_models import RecommendTourInfo, TourInfoOut
 
+from math import radians, cos, sin, asin, sqrt
+
 # --- OpenAI 클라이언트 초기화 ---
 openai_client = None 
 try:
@@ -159,7 +161,7 @@ async def get_chatbot_search_keywords_and_recommendations(user_message: str, db:
                 next_request_data = {
                     "next_question": fallback_msg,
                     "current_profile": updated_profile, 
-                    "turn_count": turn_count - 1 # 기회 한 번 더 줌
+                    "turn_count": turn_count - 1
                 }
                 return {
                      "ai_response_text": f"{fallback_msg}\n\n---PROFILE_UPDATE---\n{json.dumps(next_request_data, ensure_ascii=False)}\n---END_PROFILE---",
@@ -168,7 +170,6 @@ async def get_chatbot_search_keywords_and_recommendations(user_message: str, db:
 
             # 3. 최종 추천 멘트 생성 (검색된 데이터 기반)
             final_response = await generate_final_recommendation(found_spots, updated_profile)
-            
             return final_response
 
     except Exception as e:
@@ -210,7 +211,7 @@ def search_spots_in_db(db: Session, keywords: List[str]) -> List[TourInfoOut]:
     
     # 3. 결과 제한 (너무 많으면 AI 토큰 초과)
     # 랜덤 정렬을 원하면 func.random() 사용 가능 (DB 종류에 따라 다름)
-    results = query.limit(5).all()
+    results = query.limit(3).all()
     
     # Pydantic 모델로 변환
     return [TourInfoOut.model_validate(item) for item in results]
@@ -226,49 +227,68 @@ async def generate_final_recommendation(spots: List[TourInfoOut], profile: Dict)
     
     system_prompt_final = f"""
     [Role]
-    당신은 소도시 여행 전문가입니다. 
-    사용자 프로필: {json.dumps(profile, ensure_ascii=False)}
+    당신은 소도시 여행 전문가입니다. 사용자 프로필({profile})을 고려하여 추천 멘트를 작성합니다.
     
-    [Mission]
-    아래 [Context Data]에 있는 여행지 중 3곳을 선정하여 추천 리스트를 작성하십시오.
-    
-    [Context Data (Real DB Data)]
+    [Context Data]
     {spots_context}
 
-    [Strict Rules]
-    1. **절대 없는 장소를 지어내지 마십시오.** 오직 위 데이터에 있는 것만 추천하세요.
-    2. 출력 형식은 반드시 아래 JSON 포맷을 따르십시오.
-    
-    [Output JSON Format]
+    [Mission]
+    위 [Context Data]의 3개 여행지에 대해 각각 맞춤형 추천 이유를 작성하고, 전체적인 소개말을 작성하십시오.
+
+    [Output Format (JSON Only)]
+    반드시 아래 JSON 형식을 준수하십시오.
     {{
-        "final_response_content": "여기에 전체 답변 내용을 작성하세요. \\n\\n 규칙: \\n 1. 요약: 사용자 취향({profile.get('style')})에 맞는 여행지를 골랐다는 멘트. \\n 2. 추천 이유: 각 장소를 추천하는 이유를 감성적으로 서술. \\n 3. 마무리: 즐거운 여행 되시라는 인사. \\n\\n ※모든 내용은 줄글로 자연스럽게 작성하며, 별도 마크다운 테이블은 쓰지 마세요."
+        "intro_message": "사용자님, {profile.get('style')} 스타일을 고려하여 ~한 곳들을 선정했습니다. (전체 요약 1~2문장)",
+        "recommendations_detail": [
+            {{
+                "contentid": "여행지 ID (Context Data와 동일해야 함)",
+                "ai_summary": "이 여행지를 추천하는 구체적인 이유와 매력 포인트 (3~4문장)"
+            }},
+        ]
     }}
     """
 
-    response = await openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "system", "content": system_prompt_final}],
-        temperature=0.7,
-        response_format={"type": "json_object"}
-    )
-    
     try:
-        res_json = json.loads(response.choices[0].message.content)
-        final_text = res_json.get("final_response_content", "")
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": system_prompt_final}],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
         
-        # ⚠️ 프론트엔드 오류(undefined) 방지를 위해 강제로 footer 추가
-        # 프론트 파서가 \n※ 또는 ---RECOMMENDATION--- 등을 찾으므로 맞춰줌
-        if "※" not in final_text:
-            final_text += "\n\n※ 일부 정보는 운영 상황에 따라 변동될 수 있으니 방문 전 최신 안내를 확인해 주세요."
+        res_json = json.loads(response.choices[0].message.content)
+        intro_text = res_json.get("intro_message", "추천 여행지를 찾았습니다!")
+        ai_details = res_json.get("recommendations_detail", [])
+        
+        final_recommendations = []
+        
+        for spot in spots:
+            # 1. Pydantic 모델을 dict로 변환
+            spot_dict = spot.model_dump()
+            
+            # 2. AI 결과 매칭
+            matching_detail = next(
+                (item for item in ai_details if str(item.get("contentid")) == str(spot.contentid)), 
+                None
+            )
+            
+            # 3. ai_summary 필드 주입
+            if matching_detail and matching_detail.get("ai_summary"):
+                spot_dict["ai_summary"] = matching_detail.get("ai_summary")
+            else:
+                spot_dict["ai_summary"] = spot.addr1 # 실패 시 주소 사용
+
+            final_recommendations.append(TourInfoOut(**spot_dict))
 
         return {
-            "ai_response_text": final_text, 
-            "db_recommendations": spots[:3] # 상위 3개만 프론트로 전달 (버튼 표시용)
+            "ai_response_text": intro_text,
+            "db_recommendations": final_recommendations # 이제 올바른 객체 리스트 반환
         }
         
     except Exception as e:
-        print(f"Final Generation Error: {e}")
+        print(f"Generation Error: {e}")
+        traceback.print_exc() # 서버 로그에 에러 원인 출력
         return {
-             "ai_response_text": "추천 결과를 생성하는 중 문제가 발생했습니다. 검색된 여행지 목록을 아래에서 확인해주세요.",
-             "db_recommendations": spots[:3]
+             "ai_response_text": "추천 결과를 불러오는 중 문제가 발생했습니다.",
+             "db_recommendations": spots # 기본 데이터라도 반환
         }
