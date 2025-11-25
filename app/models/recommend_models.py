@@ -105,5 +105,4 @@ class TourInfoUpdate(BaseModel):
 
 
 class TourInfoOut(TourInfoBase):
-    # 출력 시 필드 변화는 없지만, 스키마 명시
-    pass
+    ai_summary: Optional[str] = Field(None, description="AI가 생성한 추천 요약")
