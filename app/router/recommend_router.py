@@ -80,13 +80,23 @@ def get_random_recommendations(request: RandomRecommendRequest):
 # 1. [페이지 1용] 주변 관광지 리스트 조회
 @router.get("/nearby/{contentid}", summary="반경 20km 주변 관광지 조회")
 def get_nearby_places(contentid: str, db: Session = Depends(get_db)):
+    print(f"==========================================")
+    print(f"🚀 [API 요청 도착] ID: {contentid}")
+    print(f"==========================================")
+    
     try:
         result = get_nearby_spots(contentid, db)
+        
         if not result["target"]:
+            print(f"❌ [DB 조회 실패] 해당 ID({contentid})를 DB에서 찾을 수 없습니다.")
             raise HTTPException(status_code=404, detail="해당 여행지를 찾을 수 없습니다.")
+        
+        print(f"✅ [DB 조회 성공] 주변 여행지 개수: {len(result['nearby_spots'])}")
         return result
     except Exception as e:
         print(f"Error fetching nearby spots: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="주변 관광지 조회 실패")
 
 # 2. [페이지 2용] 특정 관광지 상세 정보 조회

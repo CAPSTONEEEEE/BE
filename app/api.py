@@ -14,7 +14,8 @@ api_router = APIRouter()
 # 기능별 라우터 등록
 api_router.include_router(market_router)
 api_router.include_router(festival_router)
-api_router.include_router(recommend_router)
 api_router.include_router(common_router)
-api_router.include_router(users_router)  
+api_router.include_router(users_router)
 api_router.include_router(favorite_router) 
+
+api_router.include_router(recommend_router, prefix="/recommend", tags=["Recommend"])
