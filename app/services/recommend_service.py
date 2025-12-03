@@ -190,9 +190,11 @@ def search_spots_in_db(db: Session, keywords: List[str]) -> List[TourInfoOut]:
     
     query = db.query(RecommendTourInfo)
     
+    query = query.filter(RecommendTourInfo.addr1.isnot(None))
+    query = query.filter(RecommendTourInfo.addr1 != "")
+    
     # 대도시 제외 필터 적용
     for city in exclude_cities:
-        # addr1에 '서울' 등이 포함되지 않은 곳만 조회
         query = query.filter(RecommendTourInfo.addr1.notlike(f"%{city}%"))
 
     # 2. 키워드 검색 (OR 조건)
@@ -318,35 +320,41 @@ def get_nearby_spots(contentid: str, db: Session, limit_km: float = 20.0) -> Dic
     """
     특정 contentid의 좌표를 기준으로 반경 20km 이내의 여행지를 찾습니다.
     """
-    # 1. 기준이 되는 여행지 정보 조회
+    # 1. 기준이 되는 여행지 정보 조회 (이게 실패하면 404가 뜹니다)
     target_spot = db.query(RecommendTourInfo).filter(RecommendTourInfo.contentid == contentid).first()
     
     if not target_spot:
+        print(f"❌ Error: Content ID {contentid} not found in DB.") # [디버깅 로그]
         return {"target": None, "nearby_spots": []}
+
+    # 좌표가 없는 경우(데이터 누락) 예외 처리
+    if target_spot.mapx is None or target_spot.mapy is None:
+        return {"target": TourInfoOut.model_validate(target_spot), "nearby_spots": []}
 
     target_x = target_spot.mapx # 경도
     target_y = target_spot.mapy # 위도
 
-    # 2. 전체 여행지 조회 (최적화: 실제 서비스엔 Bounding Box 1차 필터링 권장하지만, 현재 데이터량에선 Python 루프도 가능)
-    # 여기서는 간단히 모든 데이터를 가져와서 계산합니다. 
-    # (데이터가 수만 건이라면 DB단에서 ST_Distance_Sphere 등을 쓰는게 좋음)
+    # 2. 전체 여행지 조회 (자신 제외, 좌표 있는 것만)
     all_spots = db.query(RecommendTourInfo).filter(
-        RecommendTourInfo.contentid != contentid, # 자기 자신 제외
+        RecommendTourInfo.contentid != contentid, 
         RecommendTourInfo.mapx.isnot(None),
         RecommendTourInfo.mapy.isnot(None)
     ).all()
 
     nearby_list = []
     
+    # 3. 거리 계산 (Haversine 공식)
     for spot in all_spots:
-        dist = haversine(target_x, target_y, spot.mapx, spot.mapy)
-        if dist <= limit_km:
-            # 거리 정보를 포함하기 위해 dict로 변환
-            spot_data = TourInfoOut.model_validate(spot).model_dump()
-            spot_data['distance'] = round(dist, 2) # 거리(km) 필드 추가
-            nearby_list.append(spot_data)
+        try:
+            dist = haversine(target_x, target_y, spot.mapx, spot.mapy)
+            if dist <= limit_km:
+                spot_data = TourInfoOut.model_validate(spot).model_dump()
+                spot_data['distance'] = round(dist, 2) # 거리(km) 소수점 2자리
+                nearby_list.append(spot_data)
+        except Exception:
+            continue # 계산 에러 시 건너뜀
     
-    # 3. 거리순 정렬
+    # 4. 거리순 정렬 (가까운 순)
     nearby_list.sort(key=lambda x: x['distance'])
 
     return {
